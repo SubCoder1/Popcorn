@@ -1,4 +1,4 @@
-// This is the main
+// The name of the file says it all
 
 package main
 

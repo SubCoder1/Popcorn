@@ -3,7 +3,6 @@
 package logger
 
 import (
-	"Popcorn/internal/config"
 	"io"
 	"os"
 	"time"
@@ -15,17 +14,19 @@ import (
 var output io.Writer
 var Logger zerolog.Logger
 
-func init() {
-	// setting configurations for logger
+func Setup(env string) {
+	// setting configurations for logger.
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
-	output = zerolog.ConsoleWriter{Out: os.Stdout}
-	// ConsoleWriter prettifies log, inefficient in prod
-	config.LoadDevConfig()
-	if os.Getenv("ENV") != "DEV" {
+	if env == "DEV" {
+		// Prettified ConsoleOutput for local environment.
+		output = zerolog.ConsoleWriter{Out: os.Stdout}
+	} else {
+		// ConsoleWriter prettifies log, inefficient in prod.
 		output = os.Stdout
 	}
-	// Finally, initialize the Logger with TimeStamp and CallStack features
+	// Finally, initialize the Logger with TimeStamp and CallStack features.
 	Logger = zerolog.New(output).With().Timestamp().Caller().Stack().Logger()
+	Logger.Info().Msg("Zerolog is ready to use!")
 }

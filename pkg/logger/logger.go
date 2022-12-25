@@ -18,12 +18,12 @@ var (
 	output io.Writer
 )
 
-func Setup(env string) {
+func init() {
 	// setting configurations for logger.
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
-	if env == "DEV" {
+	if os.Getenv("ENV") == "DEV" {
 		// Set output of Logger to prettified ConsoleOutput for local environment.
 		output = zerolog.ConsoleWriter{Out: os.Stdout}
 	} else {

@@ -3,10 +3,8 @@
 package main
 
 import (
-	"Popcorn/internal/config"
 	"Popcorn/pkg/logger"
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,41 +12,34 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/exp/slices"
 )
 
 var (
 	// Indicates the current version of Popcorn.
 	Version = "1.0.0"
-	// Indicates the current environment of Popcorn.
-	Env string
+	// Address and Port to be used by gin.
+	addr, port string
 )
 
 func init() {
-	// Fetching the mandatory env argument passed with main.go.
-	// values should be either DEV or PROD for development or production environment.
-	flag.StringVar(&Env, "env", "", "Popcorn Environment: DEV, PROD")
-	flag.Parse()
-	if !slices.Contains([]string{"DEV", "PROD"}, Env) {
-		flag.PrintDefaults()
-		os.Exit(2)
+	if len(os.Getenv("ENV")) == 0 {
+		panic("[FATAL] Error during loading environment variables.")
 	}
-	// Setup logger with Prettified logs in DEV, JSON in PROD environment.
-	logger.Setup(Env)
-	logger.Logger.Info().Msg(fmt.Sprintf("Welcome to Popcorn v%s", Version))
+
+	logger.Logger.Info().Msg(fmt.Sprintf("Welcome to Popcorn: v%s", Version))
+	logger.Logger.Info().Msg(fmt.Sprintf("Popcorn Environment: %s", os.Getenv("ENV")))
+
+	// Fetching addr and port depending upon env flag.
+	addr, port = os.Getenv("ADDR"), os.Getenv("PORT")
+	// This is the preferred mode used by gin server in DEV environment.
+	if os.Getenv("ENV") == "DEV" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
 }
 
 func main() {
-	var addr, port string
-	if Env == "DEV" {
-		// load the development configurations.
-		config.LoadDevConfig()
-		// Fetching addr and port depending upon env flag.
-		addr, port = os.Getenv("ADDR"), os.Getenv("PORT")
-		// This is the preferred mode used by gin server in DEV environment.
-		gin.SetMode(gin.DebugMode)
-	}
-
 	// Initializing the gin server.
 	server := gin.New()
 

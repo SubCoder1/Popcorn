@@ -5,9 +5,13 @@ package main
 import (
 	"Popcorn/internal/config"
 	"Popcorn/pkg/logger"
+	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/exp/slices"
@@ -50,6 +54,30 @@ func main() {
 	server.Use(gin.Recovery())
 	// Running router.Router() which routes all of the REST API groups and paths.
 	Router(server)
-	// Finally, run the gin server.
-	server.Run(addr + ":" + port)
+	// Running the server with defined addr and port.
+	srv := &http.Server{
+		Addr:    addr + ":" + port,
+		Handler: server,
+	}
+	// For graceful-shutdown
+	go func() {
+		// service connections
+		if err := srv.ListenAndServe(); err != nil {
+			logger.Logger.Err(err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 5 seconds.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	logger.Logger.Info().Msg("Shutting down Server ...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Logger.Fatal().Msg(err.Error())
+	}
+	logger.Logger.Info().Msg("Shutdown completed.")
 }

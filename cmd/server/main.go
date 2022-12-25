@@ -47,18 +47,23 @@ func main() {
 		// This is the preferred mode used by gin server in DEV environment.
 		gin.SetMode(gin.DebugMode)
 	}
+
 	// Initializing the gin server.
 	server := gin.New()
+
 	// Forcing gin to use custom Logger instead of the default one.
 	server.Use(logger.LoggerGinExtension(&logger.Logger))
 	server.Use(gin.Recovery())
+
 	// Running router.Router() which routes all of the REST API groups and paths.
 	Router(server)
+
 	// Running the server with defined addr and port.
 	srv := &http.Server{
 		Addr:    addr + ":" + port,
 		Handler: server,
 	}
+
 	// For graceful-shutdown
 	go func() {
 		// service connections

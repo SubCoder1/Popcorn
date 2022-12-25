@@ -17,11 +17,12 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// Indicates the current version of Popcorn.
-var Version = "1.0.0"
-
-// Indicates the current environment of Popcorn.
-var Env string
+var (
+	// Indicates the current version of Popcorn.
+	Version = "1.0.0"
+	// Indicates the current environment of Popcorn.
+	Env string
+)
 
 func init() {
 	// Fetching the mandatory env argument passed with main.go.

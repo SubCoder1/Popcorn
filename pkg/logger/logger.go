@@ -11,8 +11,12 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-var output io.Writer
-var Logger zerolog.Logger
+var (
+	// zerolog based logger to be used internally all over Popcorn.
+	Logger zerolog.Logger
+	// Output of Logger based on what environment Popcorn is being run on.
+	output io.Writer
+)
 
 func Setup(env string) {
 	// setting configurations for logger.
@@ -20,7 +24,7 @@ func Setup(env string) {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	if env == "DEV" {
-		// Prettified ConsoleOutput for local environment.
+		// Set output of Logger to prettified ConsoleOutput for local environment.
 		output = zerolog.ConsoleWriter{Out: os.Stdout}
 	} else {
 		// ConsoleWriter prettifies log, inefficient in prod.

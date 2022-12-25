@@ -14,6 +14,6 @@ func LoadDevConfig() {
 	err := godotenv.Load("config/dev.env")
 	if err != nil {
 		fmt.Println(err.Error())
-		os.Exit(-1)
+		os.Exit(1)
 	}
 }

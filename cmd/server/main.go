@@ -6,6 +6,7 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/logger"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -24,7 +25,7 @@ var (
 
 func init() {
 	if len(os.Getenv("ENV")) == 0 {
-		panic("[FATAL] Error during loading environment variables.")
+		logger.Logger.Fatal().Err(errors.New("os couldn't load ENV."))
 	}
 
 	logger.Logger.Info().Msg(fmt.Sprintf("Welcome to Popcorn: v%s", Version))
@@ -33,7 +34,7 @@ func init() {
 	// Sending a PING request to DB for connection status check.
 	err := db.PingToRedisServer(db.RedisDAO)
 	if err != nil {
-		panic(err)
+		logger.Logger.Fatal().Err(err).Msg("Redis client couldn't PING the redis-server.")
 	}
 
 	// Fetching addr and port depending upon env flag.
@@ -67,7 +68,7 @@ func main() {
 	go func() {
 		// service connections
 		if err := srv.ListenAndServe(); err != nil {
-			logger.Logger.Err(err)
+			logger.Logger.Fatal().Err(err)
 		}
 	}()
 
@@ -81,7 +82,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Logger.Fatal().Msg(err.Error())
+		logger.Logger.Fatal().Err(err)
 	}
 	logger.Logger.Info().Msg("Shutdown completed.")
 }

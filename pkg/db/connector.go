@@ -3,8 +3,6 @@
 package db
 
 import (
-	"Popcorn/pkg/logger"
-	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -26,11 +24,4 @@ func init() {
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       redisDB,
 	})
-	// Pinging the Redis-server to check connection status.
-	ctx := context.Background()
-	cnterr := RedisDAO.Ping(ctx).Err()
-	if cnterr != nil {
-		panic(cnterr)
-	}
-	logger.Logger.Info().Msg("Connection to Redis-server is successful.")
 }

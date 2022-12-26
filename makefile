@@ -15,13 +15,13 @@ dev-load-env:
 # [Unix] Build command for DEV Environment.
 dev-build: dev-load-env
 	@echo "Building Popcorn"
-	go build -o ${BINARY_NAME} ./cmd/server/.
+	go build -o ${BINARY_NAME}.exe ./cmd/server/.
 
 # [Unix] Command to run the compiled file after build.
 dev: dev-build
-	./${BINARY_NAME}
+	./${BINARY_NAME}.exe
 
 # Clean up
 clean:
 	go clean
-	rm ${BINARY_NAME}*
+	rm ${BINARY_NAME}.exe

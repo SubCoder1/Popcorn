@@ -14,7 +14,7 @@ import (
 var RedisDAO *redis.Client
 
 func init() {
-	redisDB, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB")))
+	dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
 	if strerr != nil {
 		panic(strerr)
 	}
@@ -22,6 +22,6 @@ func init() {
 	RedisDAO = redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDR") + ":" + os.Getenv("REDIS_PORT"),
 		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       redisDB,
+		DB:       dbNumber,
 	})
 }

@@ -1,4 +1,4 @@
-// Connection to Database will be handled here.
+// Initialization of Redis client to be used internally in Popcorn.
 
 package db
 

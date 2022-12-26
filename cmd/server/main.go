@@ -3,6 +3,7 @@
 package main
 
 import (
+	"Popcorn/pkg/db"
 	"Popcorn/pkg/logger"
 	"context"
 	"fmt"
@@ -28,6 +29,12 @@ func init() {
 
 	logger.Logger.Info().Msg(fmt.Sprintf("Welcome to Popcorn: v%s", Version))
 	logger.Logger.Info().Msg(fmt.Sprintf("Popcorn Environment: %s", os.Getenv("ENV")))
+
+	// Sending a PING request to DB for connection status check.
+	err := db.PingToRedisServer(db.RedisDAO)
+	if err != nil {
+		panic(err)
+	}
 
 	// Fetching addr and port depending upon env flag.
 	addr, port = os.Getenv("ADDR"), os.Getenv("PORT")

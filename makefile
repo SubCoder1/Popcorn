@@ -4,24 +4,24 @@
 BINARY_NAME = Popcorn
 
 # This line is to ensure the targets aren't considered as files.
-.PHONY: dev-load-env dev-build-win dev-win clean-win
+.PHONY: dev-load-env dev-build dev clean
 
 # This target loads development environment variables.
 dev-load-env:
 	@echo "Loading dev.env"
-    include .\config\dev.env
+    include config/dev.env
     export
 
-# [Win] Build command for DEV Environment.
-dev-build-win: dev-load-env
+# [Unix] Build command for DEV Environment.
+dev-build: dev-load-env
 	@echo "Building Popcorn"
-	go build -o ${BINARY_NAME}.exe .\cmd\server\.
+	go build -o ${BINARY_NAME} ./cmd/server/.
 
-# [Win] Command to run the compiled file after build.
-dev-win: dev-build-win
-	.\${BINARY_NAME}.exe
+# [Unix] Command to run the compiled file after build.
+dev: dev-build
+	./${BINARY_NAME}
 
 # Clean up
-clean-win:
-	go clean -modcache
-	rm ${BINARY_NAME}.*
+clean:
+	go clean
+	rm ${BINARY_NAME}*

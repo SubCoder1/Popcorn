@@ -12,6 +12,10 @@ dev-load-env:
     include config/dev.env
     export
 
+# This target starts db in development environment.
+dev-load-db:
+	sudo service redis-server restart
+
 # [Unix] Build command for DEV Environment.
 dev-build: dev-load-env
 	@echo "Building Popcorn"

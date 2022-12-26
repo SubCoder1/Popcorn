@@ -3,6 +3,7 @@
 package db
 
 import (
+	"Popcorn/pkg/logger"
 	"os"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ var RedisDAO *redis.Client
 func init() {
 	dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
 	if strerr != nil {
-		panic(strerr)
+		logger.Logger.Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
 	}
 	// Initializing a connection to Redis-server.
 	RedisDAO = redis.NewClient(&redis.Options{

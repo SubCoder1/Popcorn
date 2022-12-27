@@ -53,6 +53,7 @@ func main() {
 
 	// Forcing gin to use custom Logger instead of the default one.
 	server.Use(logger.LoggerGinExtension(&logger.Logger))
+	// Recovery middleware recovers from any panics and writes a 500 if there was one.
 	server.Use(gin.Recovery())
 
 	// Running router.Router() which routes all of the REST API groups and paths.

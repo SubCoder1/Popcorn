@@ -3,6 +3,7 @@
 package main
 
 import (
+	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/logger"
 	"context"
@@ -10,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +20,7 @@ var (
 	// Indicates the current version of Popcorn.
 	Version = "1.0.0"
 	// Address and Port to be used by gin.
-	addr, port string
+	srvaddr, srvport string
 )
 
 func init() {
@@ -38,7 +38,7 @@ func init() {
 	}
 
 	// Fetching addr and port depending upon env flag.
-	addr, port = os.Getenv("ADDR"), os.Getenv("PORT")
+	srvaddr, srvport = os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")
 	// This is the preferred mode used by gin server in DEV environment.
 	if os.Getenv("ENV") == "DEV" {
 		gin.SetMode(gin.DebugMode)
@@ -60,29 +60,25 @@ func main() {
 
 	// Running the server with defined addr and port.
 	srv := &http.Server{
-		Addr:    addr + ":" + port,
+		Addr:    srvaddr + ":" + srvport,
 		Handler: server,
 	}
 
-	// For graceful-shutdown
+	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
-		// service connections
 		if err := srv.ListenAndServe(); err != nil {
 			logger.Logger.Fatal().Err(err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server with
-	// a timeout of 5 seconds.
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
-	logger.Logger.Info().Msg("Shutting down Server ...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		logger.Logger.Fatal().Err(err)
-	}
-	logger.Logger.Info().Msg("Shutdown completed.")
+	// Graceful shutdown of Popcorn server triggered due to system interruptions.
+	wait := cleanup.GracefulShutdown(context.Background(), 5*time.Second, map[string]cleanup.Operation{
+		"Redis-server": func(ctx context.Context) error {
+			return db.RedisDAO.Close()
+		},
+		"Gin": func(ctx context.Context) error {
+			return srv.Shutdown(ctx)
+		},
+	})
+	<-wait
 }

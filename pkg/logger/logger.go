@@ -20,7 +20,6 @@ var (
 
 func init() {
 	// setting configurations for logger.
-	zerolog.SetGlobalLevel(zerolog.GlobalLevel())
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	if os.Getenv("ENV") == "DEV" {

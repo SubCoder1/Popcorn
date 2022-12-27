@@ -31,7 +31,7 @@ func GracefulShutdown(ctx context.Context, timeout time.Duration, operations map
 
 		// Force exit after timeout duration has been elapsed
 		force := time.AfterFunc(timeout, func() {
-			logger.Logger.Warn().Msg(fmt.Sprintf("Timeout %ds has been elapsed. Forcing shutdown!", timeout))
+			logger.Logger.Warn().Msg(fmt.Sprintf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds()))
 			os.Exit(3)
 		})
 		defer force.Stop()

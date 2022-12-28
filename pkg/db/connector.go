@@ -12,7 +12,7 @@ import (
 )
 
 // A DAO (Data-Access-Object) to be used internally all over Popcorn.
-var RedisDAO *redis.Client
+var redisDAO *redis.Client
 
 func init() {
 	dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
@@ -20,9 +20,13 @@ func init() {
 		logger.Logger.Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
 	}
 	// Initializing a connection to Redis-server.
-	RedisDAO = redis.NewClient(&redis.Options{
+	redisDAO = redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDR") + ":" + os.Getenv("REDIS_PORT"),
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       dbNumber,
 	})
+}
+
+func CloseDBConnection() error {
+	return redisDAO.Close()
 }

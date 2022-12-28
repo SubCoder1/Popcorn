@@ -10,12 +10,12 @@ import (
 )
 
 func Router(router *gin.Engine) {
-	// This is the route to default path.
+	// This is the route to default path
 	router.GET("/", func(gctx *gin.Context) {
 		gctx.String(http.StatusOK, "Welcome to Popcorn!")
 	})
 
-	// User related route groups.
+	// User related route groups
 	usergroup := router.Group("/user")
 	{
 		// Route to register users on Popcorn

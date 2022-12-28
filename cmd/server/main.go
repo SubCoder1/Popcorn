@@ -6,6 +6,7 @@ import (
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/logger"
+	"Popcorn/pkg/validation"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +34,7 @@ func init() {
 	logger.Logger.Info().Msg(fmt.Sprintf("Popcorn Environment: %s", os.Getenv("ENV")))
 
 	// Sending a PING request to DB for connection status check.
-	err := db.PingToRedisServer(db.RedisDAO)
+	err := db.PingToRedisServer()
 	if err != nil {
 		logger.Logger.Fatal().Err(err).Msg("Redis client couldn't PING the redis-server.")
 	}
@@ -45,6 +47,11 @@ func init() {
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
+
+	// Initializing validator
+	govalidator.SetFieldsRequiredByDefault(true)
+	// Adding custom validation tags into ext-package govalidator
+	validation.CustomValidationTags()
 }
 
 func main() {
@@ -75,7 +82,7 @@ func main() {
 	// Graceful shutdown of Popcorn server triggered due to system interruptions.
 	wait := cleanup.GracefulShutdown(context.Background(), 5*time.Second, map[string]cleanup.Operation{
 		"Redis-server": func(ctx context.Context) error {
-			return db.RedisDAO.Close()
+			return db.CloseDBConnection()
 		},
 		"Gin": func(ctx context.Context) error {
 			return srv.Shutdown(ctx)

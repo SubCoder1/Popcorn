@@ -36,7 +36,7 @@ func CustomValidationTags() {
 				break
 			}
 		}
-		return !(hasChar || hasNum)
+		return hasChar && hasNum
 	})
 }
 

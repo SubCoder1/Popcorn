@@ -4,7 +4,7 @@
 package cleanup
 
 import (
-	"Popcorn/pkg/logger"
+	logger "Popcorn/pkg/log"
 	"context"
 	"fmt"
 	"os"

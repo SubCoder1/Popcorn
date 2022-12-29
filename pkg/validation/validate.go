@@ -9,6 +9,8 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
+// This function registers custom validation tags to be used as annotations in struct.
+// After registering and adding the annotation, govalidator.ValidateStruct will trigger the validation.
 func RegisterCustomValidations() {
 	// This custom validation checks if there's any spaces in the input string.
 	govalidator.TagMap["nospace"] = govalidator.Validator(func(str string) bool {

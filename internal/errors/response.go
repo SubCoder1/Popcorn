@@ -17,9 +17,16 @@ func (e ErrorResponse) Error() string {
 	return e.Message
 }
 
-// StatusCode is required by routing.HTTPError interface.
+// Get the StatusCode of the error.
 func (e ErrorResponse) StatusCode() int {
 	return e.Status
+}
+
+// Replicates the New method of default errors package.
+func New(err string) error {
+	return ErrorResponse{
+		Message: err,
+	}
 }
 
 // InternalServerError creates a new error response representing an internal server error (HTTP 500)

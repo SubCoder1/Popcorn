@@ -27,6 +27,7 @@ func init() {
 	})
 }
 
+// This function closes the redisDAO client, should be called before closing the server.
 func CloseDBConnection() error {
 	return redisDAO.Close()
 }

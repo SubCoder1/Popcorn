@@ -9,7 +9,7 @@ import (
 type ErrorResponse struct {
 	Status  int         `json:"status"`
 	Message string      `json:"message"`
-	Details interface{} `json:"details"`
+	Details interface{} `json:"details,omitempty"`
 }
 
 // Error is required by the error interface.

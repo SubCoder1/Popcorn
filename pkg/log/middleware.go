@@ -1,6 +1,6 @@
 // This middleware is used to integrate zerolog extension created in logger.go into gin server.
 
-package logger
+package log
 
 import (
 	"fmt"

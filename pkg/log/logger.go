@@ -1,6 +1,6 @@
 // Custom logging utility used internally all over Popcorn.
 
-package logger
+package log
 
 import (
 	"io"

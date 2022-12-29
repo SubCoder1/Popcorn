@@ -82,9 +82,9 @@ type validationErrorResponse struct {
 	Message string `json:"message"` // Issue in Field
 }
 
-// Scans through set of validation errors found by govalidator
-// Generates a slice of serializable validationResponse
-func GenerateValidationErrorJSON(errs []error) []validationErrorResponse {
+// Scans through set of validation errors found by govalidator,
+// Generates a slice of serializable validationErrorResponse.
+func GenerateValidationErrorResponse(errs []error) []validationErrorResponse {
 	// govalidator returns array of errors -> Param:Message
 	// We split the error from ":"
 	resp := []validationErrorResponse{}

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// operation is a clean up function on shutting down.
+// operation is a clean up function standard.
 type Operation func(ctx context.Context) error
 
 // GracefulShutdown function waits for termination system-calls and performs clean-up operations.

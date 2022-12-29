@@ -7,8 +7,9 @@ import (
 
 // Standard for Error reponses to the client.
 type ErrorResponse struct {
-	Status  int    `json:"status"`
-	Message string `json:"message"`
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details"`
 }
 
 // Error is required by the error interface.
@@ -77,25 +78,35 @@ func BadRequest(msg string) ErrorResponse {
 }
 
 // Standard for Validation-error responses to the client.
-type validationErrorResponse struct {
+type validationError struct {
 	Param   string `json:"param"`   // Parameter or Field
 	Message string `json:"message"` // Issue in Field
 }
 
+// Captures multiple validation issues and sends it as a response in one go.
+// Use-case of this would be bunch of validation issues caught in a form.
+type ValidationErrorResponse struct {
+	Response []validationError `json:"errors"`
+}
+
 // Scans through set of validation errors found by govalidator,
 // Generates a slice of serializable validationErrorResponse.
-func GenerateValidationErrorResponse(errs []error) []validationErrorResponse {
-	// govalidator returns array of errors -> Param:Message
+func GenerateValidationErrorResponse(errs []error) ErrorResponse {
+	// govalidator returns array of errors in -> Param:Message format
 	// We split the error from ":"
-	resp := []validationErrorResponse{}
+	resp := []validationError{}
 	for _, err := range errs {
 		e := strings.Split(err.Error(), ":")
 		resp = append(
-			resp, validationErrorResponse{
+			resp, validationError{
 				Param:   e[0],
 				Message: strings.TrimSpace(e[1]),
 			},
 		)
 	}
-	return resp
+	return ErrorResponse{
+		Status:  http.StatusBadRequest,
+		Message: "Data validation error",
+		Details: ValidationErrorResponse{Response: resp},
+	}
 }

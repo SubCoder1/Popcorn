@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
@@ -23,19 +24,27 @@ func RegisterAUTHHandlers(router *gin.Engine, service Service, dbwrp *db.RedisDB
 // register returns a handler which handles user registration in Popcorn.
 func register(service Service, dbwrp *db.RedisDB, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		rctx := gctx.Request.Context()
+		// Adding unique ID to the client's context
+		// Useful for debugging as logger is setup to fetch this ID
+		rqId, uuiderr := uuid.NewRandom()
+		if uuiderr != nil {
+			logger.Error().Err(uuiderr).Msg("Error during generating UUID for ReqID.")
+		} else {
+			gctx.Set("ReqID", rqId.String())
+		}
+
 		var user entity.User
 
 		// Serialize received data into User struct
 		if binderr := gctx.BindJSON(&user); binderr != nil {
 			// Error occured during serialization: status - 500
-			logger.WithCtx(rctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 
 		// Apply the service logic for User registration in Popcorn
-		token, err := service.Register(rctx, dbwrp, user)
+		token, err := service.Register(gctx, dbwrp, user)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err := err.(errors.ErrorResponse)

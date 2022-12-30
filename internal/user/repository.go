@@ -22,7 +22,7 @@ type Repository interface {
 }
 
 // repository struct of user Repository.
-// Object of this will be passed around from main to routers.
+// Object of this will be passed around from main to internal.
 // Helps to access the repository layer interface and call methods.
 type repository struct {
 	db *db.RedisDB

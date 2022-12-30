@@ -84,6 +84,17 @@ func BadRequest(msg string) ErrorResponse {
 	}
 }
 
+// UnprocessableEntity creates a new error response representing improper JSON data being passed (HTTP 422)
+func UnprocessableEntity(msg string) ErrorResponse {
+	if msg == "" {
+		msg = "Invalid JSON or JSON with missing keys provided."
+	}
+	return ErrorResponse{
+		Status:  http.StatusUnprocessableEntity,
+		Message: msg,
+	}
+}
+
 // Standard for Validation-error responses to the client.
 type validationError struct {
 	Param   string `json:"param"`   // Parameter or Field

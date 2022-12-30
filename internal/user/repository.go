@@ -13,8 +13,10 @@ import (
 )
 
 type Repository interface {
-	// User repository function Get returns the user with username if exists
+	// Get returns the user with username if exists
 	Get(ctx context.Context, username string) (entity.User, error)
+	// Set adds the user with credentials saved in ue into the DB
+	Set(ctx context.Context, ue entity.User) (bool, error)
 	// User repository function Exists returns a boolean depending on user's availibility.
 	Exists(ctx context.Context, username string) (bool, error)
 }
@@ -51,14 +53,39 @@ func (r repository) Get(ctx context.Context, username string) (entity.User, erro
 	return user, nil
 }
 
+// Returns true if user successfully got added into the DB or error.
+func (r repository) Set(ctx context.Context, ue entity.User) (bool, error) {
+	// Checking if an user with username ue.username exists in the DB
+	// Can also be checked using Exists() before calling this method
+	available, dberr := r.Exists(ctx, ue.Username)
+	if dberr != nil {
+		// Issues in Exists()
+		return false, dberr
+	} else if available {
+		return false, errors.BadRequest("User already exists")
+	}
+	// Add the user into the DB
+	key := "user:" + ue.Username
+	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
+		client.HSet(ctx, key, "username", ue.Username)
+		client.HSet(ctx, key, "password", ue.Password)
+		return nil
+	}); dberr != nil {
+		// Error during interacting with DB
+		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in user.Set")
+		return false, errors.InternalServerError("")
+	}
+	return true, nil
+}
+
 // Returns true if user with the given username exists in Popcorn.
 func (r repository) Exists(ctx context.Context, username string) (bool, error) {
-	available, dberr := r.db.Client().HExists(context.Background(), "user:"+username, username).Result()
+	available, dberr := r.db.Client().Exists(context.Background(), "user:"+username).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
 		return false, errors.InternalServerError("")
-	} else if !available {
+	} else if available == 0 {
 		// User not available
 		return false, nil
 	}

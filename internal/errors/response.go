@@ -7,7 +7,7 @@ import (
 
 // Standard for Error reponses to the client.
 type ErrorResponse struct {
-	Status  int         `json:"status"`
+	Status  int         `json:"status,omitempty"`
 	Message string      `json:"message"`
 	Details interface{} `json:"details,omitempty"`
 }

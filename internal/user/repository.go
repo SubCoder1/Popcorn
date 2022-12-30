@@ -6,7 +6,7 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/db"
-	logger "Popcorn/pkg/log"
+	"Popcorn/pkg/log"
 	"context"
 
 	"github.com/go-redis/redis/v8"
@@ -14,11 +14,11 @@ import (
 
 type Repository interface {
 	// Get returns the user with username if exists
-	Get(ctx context.Context, username string) (entity.User, error)
+	Get(context.Context, log.Logger, string) (entity.User, error)
 	// Set adds the user with credentials saved in ue into the DB
-	Set(ctx context.Context, ue entity.User) (bool, error)
+	Set(context.Context, log.Logger, entity.User) (bool, error)
 	// User repository function Exists returns a boolean depending on user's availibility.
-	Exists(ctx context.Context, username string) (bool, error)
+	Exists(context.Context, log.Logger, string) (bool, error)
 }
 
 // repository struct of user Repository.
@@ -34,12 +34,12 @@ func NewRepository(dbwrp *db.RedisDB) Repository {
 }
 
 // Returns the user data object if user with the given username is found in the DB.
-func (r repository) Get(ctx context.Context, username string) (entity.User, error) {
+func (r repository) Get(ctx context.Context, logger log.Logger, username string) (entity.User, error) {
 	user := entity.User{}
 	available, dberr := r.db.Client().HExists(ctx, "user:"+username, username).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
-		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
 		return user, dberr
 	} else if !available {
 		// User not available
@@ -47,17 +47,17 @@ func (r repository) Get(ctx context.Context, username string) (entity.User, erro
 	}
 	if dberr := r.db.Client().HGetAll(ctx, "user:"+username).Scan(&user); dberr != nil {
 		// Error during interacting with DB
-		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.HGetAll() in user.Get")
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGetAll() in user.Get")
 		return user, dberr
 	}
 	return user, nil
 }
 
 // Returns true if user successfully got added into the DB or error.
-func (r repository) Set(ctx context.Context, ue entity.User) (bool, error) {
+func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) (bool, error) {
 	// Checking if an user with username ue.username exists in the DB
 	// Can also be checked using Exists() before calling this method
-	available, dberr := r.Exists(ctx, ue.Username)
+	available, dberr := r.Exists(ctx, logger, ue.Username)
 	if dberr != nil {
 		// Issues in Exists()
 		return false, dberr
@@ -72,18 +72,18 @@ func (r repository) Set(ctx context.Context, ue entity.User) (bool, error) {
 		return nil
 	}); dberr != nil {
 		// Error during interacting with DB
-		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in user.Set")
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in user.Set")
 		return false, errors.InternalServerError("")
 	}
 	return true, nil
 }
 
 // Returns true if user with the given username exists in Popcorn.
-func (r repository) Exists(ctx context.Context, username string) (bool, error) {
+func (r repository) Exists(ctx context.Context, logger log.Logger, username string) (bool, error) {
 	available, dberr := r.db.Client().Exists(context.Background(), "user:"+username).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
-		logger.Logger.Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
 		return false, errors.InternalServerError("")
 	} else if available == 0 {
 		// User not available

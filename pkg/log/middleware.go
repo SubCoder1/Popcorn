@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 )
 
 // This middleware is replicated from https://learninggolang.com/it5-gin-structured-logging.html.
 // Primary use-case of this middleware is to force gin to use zerolog functionality instead of the default one.
-func LoggerGinExtension(logger *zerolog.Logger) gin.HandlerFunc {
+func LoggerGinExtension(logger Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		start := time.Now() // Start timer
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
@@ -41,22 +39,20 @@ func LoggerGinExtension(logger *zerolog.Logger) gin.HandlerFunc {
 		}
 		param.Path = path
 
-		// Log using the params
-		var logEvent *zerolog.Event
-		if c.Writer.Status() >= 500 {
-			logEvent = logger.Error()
-		} else if c.Writer.Status() >= 400 {
-			logEvent = logger.Warn()
-		} else {
-			logEvent = logger.Info()
-		}
-
-		logEvent.Msg(fmt.Sprintf("%s | %s | %s | %d | %s | %s",
+		message := fmt.Sprintf("%s | %s | %s | %d | %s | %s",
 			param.ClientIP,
 			param.Method,
 			param.Path,
 			param.StatusCode,
 			param.Latency.String(),
-			param.ErrorMessage))
+			param.ErrorMessage)
+
+		if c.Writer.Status() >= 500 {
+			logger.Error().Msg(message)
+		} else if c.Writer.Status() >= 400 {
+			logger.Warn().Msg(message)
+		} else {
+			logger.Info().Msg(message)
+		}
 	}
 }

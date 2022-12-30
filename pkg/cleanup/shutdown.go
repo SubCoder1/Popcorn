@@ -4,7 +4,7 @@
 package cleanup
 
 import (
-	logger "Popcorn/pkg/log"
+	"Popcorn/pkg/log"
 	"context"
 	"fmt"
 	"os"
@@ -18,7 +18,7 @@ import (
 type Operation func(ctx context.Context) error
 
 // GracefulShutdown function waits for termination system-calls and performs clean-up operations.
-func GracefulShutdown(ctx context.Context, timeout time.Duration, operations map[string]Operation) <-chan bool {
+func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Duration, operations map[string]Operation) <-chan bool {
 	wait := make(chan bool)
 
 	go func() {
@@ -27,11 +27,11 @@ func GracefulShutdown(ctx context.Context, timeout time.Duration, operations map
 		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 		<-s
 
-		logger.Logger.Warn().Msg("Graceful shutdown in progress.")
+		logger.WithCtx(ctx).Warn().Msg("Graceful shutdown in progress.")
 
 		// Force exit after timeout duration has been elapsed
 		force := time.AfterFunc(timeout, func() {
-			logger.Logger.Warn().Msg(fmt.Sprintf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds()))
+			logger.WithCtx(ctx).Warn().Msg(fmt.Sprintf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds()))
 			os.Exit(2)
 		})
 		defer force.Stop()
@@ -44,11 +44,11 @@ func GracefulShutdown(ctx context.Context, timeout time.Duration, operations map
 			wg.Add(1)
 			go func(opname string, op Operation) {
 				defer wg.Done()
-				logger.Logger.Info().Msg(fmt.Sprintf("Shutting down: %s", opname))
+				logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Shutting down: %s", opname))
 				if err := op(ctx); err != nil {
-					logger.Logger.Fatal().Err(err)
+					logger.WithCtx(ctx).Fatal().Err(err)
 				}
-				logger.Logger.Info().Msg(fmt.Sprintf("%s shutdown completed.", opname))
+				logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("%s shutdown completed.", opname))
 			}(opname, op)
 		}
 		// Wait for all of the tasks to finish

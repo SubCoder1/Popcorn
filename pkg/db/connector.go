@@ -4,7 +4,7 @@ package db
 
 import (
 	"Popcorn/internal/errors"
-	logger "Popcorn/pkg/log"
+	"Popcorn/pkg/log"
 	"context"
 	"os"
 	"strconv"
@@ -24,10 +24,10 @@ func (db *RedisDB) Client() *redis.Client {
 }
 
 // Returns a new Redis DB connection wrapped up by RedisDB struct.
-func NewDBConnection(client *redis.Client) *RedisDB {
+func NewDBConnection(ctx context.Context, logger log.Logger, client *redis.Client) *RedisDB {
 	dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
 	if strerr != nil {
-		logger.Logger.Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
+		logger.WithCtx(ctx).Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
 	}
 	// Initializing a connection to Redis-server.
 	client = redis.NewClient(&redis.Options{
@@ -40,8 +40,8 @@ func NewDBConnection(client *redis.Client) *RedisDB {
 
 // Helper to check connection status of redis client to redis-server.
 // Equivalent to a PING request on redis-server, returns PONG on success.
-func (db *RedisDB) CheckDBConnection(ctx context.Context) error {
-	logger.Logger.Info().Msg("Checking DB Connection . . .")
+func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) error {
+	logger.WithCtx(ctx).Info().Msg("Checking DB Connection . . .")
 	// Pinging the Redis-server to check connection status
 	cnterr := db.Client().Ping(ctx).Err()
 	if cnterr != nil {
@@ -49,11 +49,11 @@ func (db *RedisDB) CheckDBConnection(ctx context.Context) error {
 		return errors.InternalServerError(cnterr.Error())
 	}
 	// Connection successful
-	logger.Logger.Info().Msg("Connection to DB Successful")
+	logger.WithCtx(ctx).Info().Msg("Connection to DB Successful")
 	return nil
 }
 
 // Helper to close the RedisDB client, should be called before closing the server.
-func (db *RedisDB) CloseDBConnection() error {
+func (db *RedisDB) CloseDBConnection(ctx context.Context) error {
 	return db.Client().Close()
 }

@@ -3,15 +3,18 @@
 package validation
 
 import (
+	"context"
 	"strings"
 	"unicode"
+
+	"Popcorn/pkg/log"
 
 	"github.com/asaskevich/govalidator"
 )
 
 // This function registers custom validation tags to be used as annotations in struct.
 // After registering and adding the annotation, govalidator.ValidateStruct will trigger the validation.
-func RegisterCustomValidations() {
+func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 	// This custom validation checks if there's any spaces in the input string.
 	govalidator.TagMap["nospace"] = govalidator.Validator(func(str string) bool {
 		return !strings.Contains(str, " ")
@@ -33,4 +36,5 @@ func RegisterCustomValidations() {
 		}
 		return hasChar && hasNum
 	})
+	logger.WithCtx(ctx).Info().Msg("Successfully registered custom validations.")
 }

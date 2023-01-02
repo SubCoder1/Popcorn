@@ -48,11 +48,11 @@ func LoggerGinExtension(logger Logger) gin.HandlerFunc {
 			param.ErrorMessage)
 
 		if c.Writer.Status() >= 500 {
-			logger.Error().Msg(message)
+			logger.WithCtx(c).Error().Msg(message)
 		} else if c.Writer.Status() >= 400 {
-			logger.Warn().Msg(message)
+			logger.WithCtx(c).Warn().Msg(message)
 		} else {
-			logger.Info().Msg(message)
+			logger.WithCtx(c).Info().Msg(message)
 		}
 	}
 }

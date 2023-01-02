@@ -15,7 +15,7 @@ import (
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
 func RegisterAUTHHandlers(router *gin.Engine, service Service, dbwrp *db.RedisDB, logger log.Logger) {
-	authgroup := router.Group("/auth")
+	authgroup := router.Group("/api/auth")
 	{
 		authgroup.POST("/register", register(service, dbwrp, logger))
 	}

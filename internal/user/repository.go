@@ -8,6 +8,7 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
+	"fmt"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -17,8 +18,11 @@ type Repository interface {
 	Get(context.Context, log.Logger, string) (entity.User, error)
 	// Set adds the user with credentials saved in ue into the DB
 	Set(context.Context, log.Logger, entity.User) (bool, error)
-	// User repository function Exists returns a boolean depending on user's availibility.
+	// Exists returns a boolean depending on user's availability.
 	Exists(context.Context, log.Logger, string) (bool, error)
+	// Increments the current number of Users to 1 and returns the new total.
+	// Util used during user registration.
+	IncrTotal(context.Context, log.Logger) (uint64, error)
 }
 
 // repository struct of user Repository.
@@ -67,6 +71,7 @@ func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) 
 	// Add the user into the DB
 	key := "user:" + ue.Username
 	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
+		client.HSet(ctx, key, "id", ue.ID)
 		client.HSet(ctx, key, "username", ue.Username)
 		client.HSet(ctx, key, "password", ue.Password)
 		return nil
@@ -80,7 +85,7 @@ func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) 
 
 // Returns true if user with the given username exists in Popcorn.
 func (r repository) Exists(ctx context.Context, logger log.Logger, username string) (bool, error) {
-	available, dberr := r.db.Client().Exists(context.Background(), "user:"+username).Result()
+	available, dberr := r.db.Client().Exists(ctx, "user:"+username).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
@@ -90,4 +95,15 @@ func (r repository) Exists(ctx context.Context, logger log.Logger, username stri
 		return false, nil
 	}
 	return true, nil
+}
+
+// Increments the total number of users in Popcorn.
+func (r repository) IncrTotal(ctx context.Context, logger log.Logger) (uint64, error) {
+	newTotal, dberr := r.db.Client().IncrBy(ctx, "users", 1).Result()
+	if dberr != nil {
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.IncrBy in user.IncTotal")
+		return 0, errors.InternalServerError("")
+	}
+	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Current total users in Popcorn - %d", newTotal))
+	return uint64(newTotal), nil
 }

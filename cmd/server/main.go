@@ -40,16 +40,21 @@ func main() {
 		logger.WithCtx(ctx).Fatal().Err(errors.New("os couldn't load ENV.")).Msg("")
 	}
 	logger.WithCtx(ctx).Info().Msg("Welcome to Popcorn")
-	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Popcorn Environment: %s", os.Getenv("ENV")))
+	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Popcorn Environment: %s", environment))
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
 	var client *redis.Client
 	dbConnWrp := db.NewDBConnection(ctx, logger, client)
 	// Sending a PING request to DB for connection status check
-	dberr := dbConnWrp.CheckDBConnection(ctx, logger)
-	if dberr != nil {
-		logger.WithCtx(ctx).Fatal().Err(dberr).Msg("Redis client couldn't PING the redis-server.")
+	dbConnWrp.CheckDBConnection(ctx, logger)
+	// Setting default values to global keys if not exist already in the DB
+	// Ex of global key: total number of users -> users:0
+	// The values of these global keys will be used/changed internally
+	globalDBkeys := map[string]interface{}{"users": 0}
+	if _, dberr := dbConnWrp.SetKeyIfNotExists(ctx, logger, globalDBkeys); dberr != nil {
+		// Global keys not set, better to exit else unknown issues will pop-up in server code
+		os.Exit(3)
 	}
 
 	// Initializing validator
@@ -64,7 +69,6 @@ func main() {
 		Addr:    srvaddr + ":" + srvport,
 		Handler: buildHandler(ctx, dbConnWrp, logger),
 	}
-
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
@@ -99,10 +103,6 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	server.Use(log.LoggerGinExtension(logger))
 	// Recovery middleware recovers from any panics and writes a 500 if there was one
 	server.Use(gin.Recovery())
-
-	server.GET("/", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{"status": "middleware isn't the issue"})
-	})
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler

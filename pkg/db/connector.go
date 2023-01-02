@@ -3,7 +3,6 @@
 package db
 
 import (
-	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"context"
 	"os"
@@ -40,17 +39,39 @@ func NewDBConnection(ctx context.Context, logger log.Logger, client *redis.Clien
 
 // Helper to check connection status of redis client to redis-server.
 // Equivalent to a PING request on redis-server, returns PONG on success.
-func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) error {
+func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) {
 	logger.WithCtx(ctx).Info().Msg("Checking DB Connection . . .")
 	// Pinging the Redis-server to check connection status
 	cnterr := db.Client().Ping(ctx).Err()
 	if cnterr != nil {
 		// Most likely, DB connection failure
-		return errors.InternalServerError(cnterr.Error())
+		logger.WithCtx(ctx).Fatal().Err(cnterr).Msg("Redis client couldn't PING the redis-server.")
 	}
 	// Connection successful
 	logger.WithCtx(ctx).Info().Msg("Connection to DB Successful")
-	return nil
+}
+
+// Helper to check if key:value exists in the DB. Sets the key to 0 if not.
+// Best to use this util before starting gin.
+func (db *RedisDB) SetKeyIfNotExists(ctx context.Context, logger log.Logger, keys map[string]interface{}) (map[string]bool, error) {
+	res := make(map[string]bool)
+	if _, dberr := db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
+		for key, val := range keys {
+			r, qryerr := client.SetNX(ctx, key, val, -1).Result()
+			if qryerr != nil {
+				logger.WithCtx(ctx).Error().Err(qryerr).Msg("Error during execution of queries inside redis.Pipelined() in conn.SetKeyIfNotExists")
+				return qryerr
+			} else {
+				// true means set; false means already exist
+				res[key] = r
+			}
+		}
+		return nil
+	}); dberr != nil {
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in conn.SetKeyIfNotExists")
+		return res, dberr
+	}
+	return res, nil
 }
 
 // Helper to close the RedisDB client, should be called before closing the server.

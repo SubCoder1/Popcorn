@@ -56,6 +56,15 @@ func (s service) Register(ctx context.Context, dbwrp *db.RedisDB, ue entity.User
 		return "", errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
+	// Increment users by 1 and return the total
+	// currTotal will be used as userID
+	currTotal, dberr := userrepo.IncrTotal(ctx, s.logger)
+	if dberr != nil {
+		// Error occured in IncrTotal()
+		return "", dberr
+	}
+	ue.ID = currTotal
+
 	// Hash user password and save the credentials in the user object
 	hasheduserpwd, hasherr := s.generatePwDHash(ctx, ue.Password)
 	if hasherr != nil {

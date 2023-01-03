@@ -53,7 +53,7 @@ func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) {
 
 // Helper to check if key:value exists in the DB. Sets the key to 0 if not.
 // Best to use this util before starting gin.
-func (db *RedisDB) SetKeyIfNotExists(ctx context.Context, logger log.Logger, keys map[string]interface{}) (map[string]bool, error) {
+func (db *RedisDB) SetGlobKeyIfNotExists(ctx context.Context, logger log.Logger, keys map[string]interface{}) (map[string]bool, error) {
 	res := make(map[string]bool)
 	if _, dberr := db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
 		for key, val := range keys {

@@ -14,9 +14,9 @@ import (
 )
 
 type Repository interface {
-	// Get returns the user with username if exists
+	// Get returns the user with username if exists.
 	Get(context.Context, log.Logger, string) (entity.User, error)
-	// Set adds the user with credentials saved in ue into the DB
+	// Set adds the user with credentials saved in ue into the DB.
 	Set(context.Context, log.Logger, entity.User) (bool, error)
 	// Exists returns a boolean depending on user's availability.
 	Exists(context.Context, log.Logger, string) (bool, error)

@@ -47,12 +47,16 @@ func register(service Service, dbwrp *db.RedisDB, logger log.Logger) gin.Handler
 		token, err := service.Register(gctx, dbwrp, user)
 		if err != nil {
 			// Error occured, might be validation or server error
-			err := err.(errors.ErrorResponse)
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
 			gctx.JSON(err.Status, err)
 			return
 		}
 
 		// Registration successful, send the JWT token as a response
-		gctx.JSON(http.StatusOK, gin.H{"token": token})
+		gctx.JSON(http.StatusOK, token)
 	}
 }

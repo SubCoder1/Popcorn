@@ -122,8 +122,5 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	authservice := auth.NewService(accSecret, refSecret, userrepo, authrepo, logger)
 	auth.AuthHandlers(server, authservice, accAuthMiddleware, refAuthMiddleware, logger)
 
-	server.GET("/", accAuthMiddleware, func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, "Authenticated")
-	})
 	return server
 }

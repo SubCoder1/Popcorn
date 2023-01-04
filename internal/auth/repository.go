@@ -19,6 +19,8 @@ type Repository interface {
 	SetToken(context.Context, log.Logger, *JWTdata) error
 	// TokenExists checks whether token:userID exists in the DB.
 	TokenExists(context.Context, log.Logger, string, uint64) (bool, error)
+	// DelToken deletes TokenUUID from DB (if exists).
+	DelToken(context.Context, log.Logger, string) error
 }
 
 // repository struct of user Repository.
@@ -73,4 +75,17 @@ func (r repository) TokenExists(ctx context.Context, logger log.Logger, tokenUUI
 		return false, errors.InternalServerError("")
 	}
 	return uint64(id) == UserID, nil
+}
+
+// Returns nil if tokenUUID was deleted from DB (if found) else error.
+func (r repository) DelToken(ctx context.Context, logger log.Logger, tokenUUID string) error {
+	deleted, dberr := r.db.Client().Del(ctx, tokenUUID).Result()
+	if dberr != nil {
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Del in auth.DelToken")
+		return errors.InternalServerError("")
+	} else if deleted == 0 {
+		// tokenUUID didn't even exist in the DB
+		return errors.NotFound("")
+	}
+	return nil
 }

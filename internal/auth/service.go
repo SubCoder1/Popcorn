@@ -5,11 +5,13 @@ package auth
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
-	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
+	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 
 	"Popcorn/internal/user"
 
@@ -19,69 +21,85 @@ import (
 // Service layer of internal package auth which encapsulates authentication logic of Popcorn.
 type Service interface {
 	// Registers an user in Popcorn with valid user credentials
-	Register(context.Context, *db.RedisDB, entity.User) (string, error)
+	Register(context.Context, entity.User) (map[string]string, error)
 }
 
 // Object of this will be passed around from main to routers to API.
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	logger log.Logger
+	accSigningKey string
+	refSigningKey string
+	userrepo      user.Repository
+	authrepo      Repository
+	logger        log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(logger log.Logger) Service {
-	return service{logger}
+func NewService(accSigningKey string, refSigningKey string, userrepo user.Repository, authrepo Repository, logger log.Logger) Service {
+	return service{accSigningKey, refSigningKey, userrepo, authrepo, logger}
 }
 
-func (s service) Register(ctx context.Context, dbwrp *db.RedisDB, ue entity.User) (string, error) {
+func (s service) Register(ctx context.Context, ue entity.User) (map[string]string, error) {
+	token := make(map[string]string)
+
 	// Validate the received user data which is serialized to entity.User struct
 	valerr := s.validateUserData(ctx, ue)
 	if valerr != nil {
 		// Error occured during validation
-		return "", valerr
+		return token, valerr
 	}
 
 	// Check for user availability against user.Username
-	// Need to access internal package user's repository function Exists() and Set()
-	userrepo := user.NewRepository(dbwrp)
-
-	available, dberr := userrepo.Exists(ctx, s.logger, ue.Username)
+	available, dberr := s.userrepo.Exists(ctx, s.logger, ue.Username)
 	if dberr != nil {
 		// Error occured in Exists()
-		return "", dberr
+		return token, errors.InternalServerError("")
 	} else if available {
 		// User by the received username is already available in the platform
 		valerr := errors.New("username:username is already taken")
-		return "", errors.GenerateValidationErrorResponse([]error{valerr})
+		return token, errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
-	// Increment users by 1 and return the total
-	// currTotal will be used as userID
-	currTotal, dberr := userrepo.IncrTotal(ctx, s.logger)
+	// users is a global key in db used to store current total number of users in Popcorn
+	// Increment users by 1 and use that value as userID
+	currTotal, dberr := s.userrepo.IncrTotal(ctx, s.logger)
 	if dberr != nil {
 		// Error occured in IncrTotal()
-		return "", dberr
+		return token, errors.InternalServerError("")
 	}
 	ue.ID = currTotal
 
 	// Hash user password and save the credentials in the user object
 	hasheduserpwd, hasherr := s.generatePwDHash(ctx, ue.Password)
 	if hasherr != nil {
-		return "", hasherr
+		return token, errors.InternalServerError("")
 	}
 	ue.Password = hasheduserpwd
 
 	// Save the user in the DB
-	_, dberr = userrepo.Set(ctx, s.logger, ue)
+	_, dberr = s.userrepo.Set(ctx, s.logger, ue)
 	if dberr != nil {
 		// Error occured in Set()
-		return "", dberr
+		return token, dberr
 	}
 
 	// Generate JWT token for the newly created user
+	userJWTData, jwterr := s.createToken(ctx, ue.ID)
+	if jwterr != nil {
+		// Error during generating user's jwtData
+		return token, errors.InternalServerError("")
+	}
+	// Save generated tokens with expiration into the DB
+	dberr = s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	if dberr != nil {
+		// Error during saving user's JWT token
+		return token, errors.InternalServerError("")
+	}
 
-	return "token", nil
+	token["access_token"] = userJWTData.AccessToken
+	token["refresh_token"] = userJWTData.RefreshToken
+	return token, nil
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
@@ -110,4 +128,62 @@ func (s service) generatePwDHash(ctx context.Context, password string) (string, 
 func (s service) verifyPwDHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+type JWTdata struct {
+	UserID          uint64 `json:"user_id"`
+	AccessToken     string `json:"access_token"`
+	AccTokenExp     int64  `json:"access_token_expiry"`
+	AccessTokenUUID string `json:"access_token_uuid"`
+	RefreshToken    string `json:"refresh_token"`
+	RefTokenExp     int64  `json:"refresh_token_expiry"`
+	RefTokenUUID    string `json:"refresh_token_uuid"`
+}
+
+// Helper to generate a JWT token for an user given the claims data.
+func (s service) generateJWT(ctx context.Context, claims jwt.Claims, signingKey string) (string, error) {
+	token, jwterr := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(signingKey))
+	if jwterr != nil {
+		s.logger.Error().Err(jwterr).Msg("Error occured during jwt token generation")
+		return "", jwterr
+	}
+	return token, nil
+}
+
+// Helper to create and return jwtData for an user with userID passed as param.
+func (s service) createToken(ctx context.Context, userID uint64) (*JWTdata, error) {
+	jd := &JWTdata{}
+	var jwterr error
+
+	jd.UserID = userID
+	jd.AccessTokenUUID = uuid.NewString()
+	jd.AccTokenExp = time.Now().Add(time.Minute * 15).Unix()
+	jd.RefTokenUUID = uuid.NewString()
+	jd.RefTokenExp = time.Now().Add(time.Hour * 24 * 7).Unix()
+
+	// Generate AccessToken using above data as claims
+	// Pass AccessTokenSigningKey fetched from env to service
+	jd.AccessToken, jwterr = s.generateJWT(ctx, jwt.MapClaims{
+		"authorized":        true,
+		"access_token_uuid": jd.AccessTokenUUID,
+		"user_id":           userID,
+		"exp":               jd.AccTokenExp,
+	}, s.accSigningKey)
+	if jwterr != nil {
+		// Error in generateJWT
+		return nil, jwterr
+	}
+	// Generate RefreshToken using above data as claims
+	// Pass RefreshTokenSigningKey fetched from env to service
+	jd.RefreshToken, jwterr = s.generateJWT(ctx, jwt.MapClaims{
+		"refresh_token_uuid": jd.RefTokenUUID,
+		"user_id":            userID,
+		"exp":                jd.RefTokenExp,
+	}, s.refSigningKey)
+	if jwterr != nil {
+		// Error in generateJWT
+		return nil, jwterr
+	}
+
+	return jd, nil
 }

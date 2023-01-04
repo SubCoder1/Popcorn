@@ -14,8 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// This middleware is used to verify and validate incoming JWT.
-// TokenType can either be "access_token" or "refresh_token".
+// This middleware is used to verify and validate incoming JWT, TokenType can either be "access_token" or "refresh_token".
 // Access-Secret and Refresh-Secret will be used to parse access_token and refresh_token respectively.
 // Blocks the request to go further into other handlers if token is invalid.
 func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, secret string) gin.HandlerFunc {

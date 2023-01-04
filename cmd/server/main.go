@@ -92,7 +92,11 @@ func main() {
 
 // Helper to build up the server and register handlers from internal packages in Popcorn
 func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) *gin.Engine {
-	// This is the preferred mode used by gin server in DEV environment
+	// Set any environment variables to be used in handlers here
+	accSecret := os.Getenv("ACCESS_SECRET")
+	refSecret := os.Getenv("REFRESH_SECRET")
+
+	// Set the gin mode according to environment
 	if environment == "DEV" {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -101,22 +105,25 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	// Initializing the gin server
 	server := gin.New()
 
-	// Forcing gin to use custom Logger instead of the default one
-	server.Use(log.LoggerGinExtension(logger))
-	// Recovery middleware recovers from any panics and writes a 500 if there was one
-	server.Use(gin.Recovery())
+	// Declare global middlewares here
+	server.Use(log.LoggerGinExtension(logger)) // Forcing gin to use custom Logger instead of the default one
+	server.Use(gin.Recovery())                 // Recovery middleware recovers from any panics and writes a 500 if there was one
 
-	// Create Repository instance for different internal packages
-	// These repositories will be passed around in service
+	// Create Repository instance which will be used internally being passed around through service params
 	authrepo := auth.NewRepository(dbConnWrp)
 	userrepo := user.NewRepository(dbConnWrp)
 
+	// Declare internal middlewares here
+	accAuthMiddleware := auth.AuthMiddleware(logger, authrepo, "access_token", accSecret)
+	refAuthMiddleware := auth.AuthMiddleware(logger, authrepo, "refresh_token", refSecret)
+
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
-	accSecret := os.Getenv("ACCESS_SECRET")
-	refSecret := os.Getenv("REFRESH_SECRET")
 	authservice := auth.NewService(accSecret, refSecret, userrepo, authrepo, logger)
-	auth.RegisterAUTHHandlers(server, authservice, logger)
+	auth.AuthHandlers(server, authservice, accAuthMiddleware, refAuthMiddleware, logger)
 
+	server.GET("/", accAuthMiddleware, func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, "Authenticated")
+	})
 	return server
 }

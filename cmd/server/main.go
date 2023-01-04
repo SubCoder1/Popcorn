@@ -5,6 +5,7 @@ package main
 import (
 	"Popcorn/internal/auth"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
@@ -37,6 +38,7 @@ func main() {
 	if len(environment) == 0 {
 		// Fatal starts a new message with fatal level
 		// The os.Exit(1) function is called by the Msg method, which terminates the program immediately
+		// if environment is empty, it means the env file wasn't correctly loaded into the platform. Exit immediately!
 		logger.WithCtx(ctx).Fatal().Err(errors.New("os couldn't load ENV.")).Msg("")
 	}
 	logger.WithCtx(ctx).Info().Msg("Welcome to Popcorn")
@@ -52,7 +54,7 @@ func main() {
 	// Ex of global key: total number of users -> users:0
 	// The values of these global keys will be used/changed internally
 	globalDBkeys := map[string]interface{}{"users": 0}
-	if _, dberr := dbConnWrp.SetKeyIfNotExists(ctx, logger, globalDBkeys); dberr != nil {
+	if _, dberr := dbConnWrp.SetGlobKeyIfNotExists(ctx, logger, globalDBkeys); dberr != nil {
 		// Global keys not set, better to exit else unknown issues will pop-up in server code
 		os.Exit(3)
 	}
@@ -91,7 +93,7 @@ func main() {
 // Helper to build up the server and register handlers from internal packages in Popcorn
 func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) *gin.Engine {
 	// This is the preferred mode used by gin server in DEV environment
-	if os.Getenv("ENV") == "DEV" {
+	if environment == "DEV" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -104,9 +106,17 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	// Recovery middleware recovers from any panics and writes a 500 if there was one
 	server.Use(gin.Recovery())
 
+	// Create Repository instance for different internal packages
+	// These repositories will be passed around in service
+	authrepo := auth.NewRepository(dbConnWrp)
+	userrepo := user.NewRepository(dbConnWrp)
+
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
-	auth.RegisterAUTHHandlers(server, auth.NewService(logger), dbConnWrp, logger)
+	accSecret := os.Getenv("ACCESS_SECRET")
+	refSecret := os.Getenv("REFRESH_SECRET")
+	authservice := auth.NewService(accSecret, refSecret, userrepo, authrepo, logger)
+	auth.RegisterAUTHHandlers(server, authservice, logger)
 
 	return server
 }

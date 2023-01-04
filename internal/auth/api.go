@@ -5,7 +5,6 @@ package auth
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
-	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"net/http"
 
@@ -14,15 +13,15 @@ import (
 )
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
-func RegisterAUTHHandlers(router *gin.Engine, service Service, dbwrp *db.RedisDB, logger log.Logger) {
+func RegisterAUTHHandlers(router *gin.Engine, service Service, logger log.Logger) {
 	authgroup := router.Group("/api/auth")
 	{
-		authgroup.POST("/register", register(service, dbwrp, logger))
+		authgroup.POST("/register", register(service, logger))
 	}
 }
 
 // register returns a handler which handles user registration in Popcorn.
-func register(service Service, dbwrp *db.RedisDB, logger log.Logger) gin.HandlerFunc {
+func register(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Adding unique ID to the client's context
 		// Useful for debugging as logger is setup to fetch this ID
@@ -44,7 +43,7 @@ func register(service Service, dbwrp *db.RedisDB, logger log.Logger) gin.Handler
 		}
 
 		// Apply the service logic for User registration in Popcorn
-		token, err := service.Register(gctx, dbwrp, user)
+		token, err := service.Register(gctx, user)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

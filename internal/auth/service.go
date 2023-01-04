@@ -23,7 +23,7 @@ type Service interface {
 	// Registers an user in Popcorn with valid user credentials
 	register(context.Context, entity.User) (map[string]string, error)
 	// Generates a fresh JWT for an user in Popcorn
-	createToken(context.Context, uint64) (*JWTdata, error)
+	refreshtoken(context.Context, uint64) (map[string]string, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -99,6 +99,25 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]strin
 		return token, errors.InternalServerError("")
 	}
 
+	token["access_token"] = userJWTData.AccessToken
+	token["refresh_token"] = userJWTData.RefreshToken
+	return token, nil
+}
+
+func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]string, error) {
+	token := make(map[string]string)
+	// Create fresh JWT for user
+	userJWTData, jwterr := s.createToken(ctx, userID)
+	if jwterr != nil {
+		// Error during generating user's jwtData
+		return token, errors.InternalServerError("")
+	}
+	// Save generated tokens with expiration into the DB
+	dberr := s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	if dberr != nil {
+		// Error during saving user's JWT
+		return token, errors.InternalServerError("")
+	}
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
 	return token, nil

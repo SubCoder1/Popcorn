@@ -21,7 +21,9 @@ import (
 // Service layer of internal package auth which encapsulates authentication logic of Popcorn.
 type Service interface {
 	// Registers an user in Popcorn with valid user credentials
-	Register(context.Context, entity.User) (map[string]string, error)
+	register(context.Context, entity.User) (map[string]string, error)
+	// Generates a fresh JWT for an user in Popcorn
+	createToken(context.Context, uint64) (*JWTdata, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -40,7 +42,7 @@ func NewService(accSigningKey string, refSigningKey string, userrepo user.Reposi
 	return service{accSigningKey, refSigningKey, userrepo, authrepo, logger}
 }
 
-func (s service) Register(ctx context.Context, ue entity.User) (map[string]string, error) {
+func (s service) register(ctx context.Context, ue entity.User) (map[string]string, error) {
 	token := make(map[string]string)
 
 	// Validate the received user data which is serialized to entity.User struct
@@ -84,7 +86,7 @@ func (s service) Register(ctx context.Context, ue entity.User) (map[string]strin
 		return token, dberr
 	}
 
-	// Generate JWT token for the newly created user
+	// Generate JWT for the newly created user
 	userJWTData, jwterr := s.createToken(ctx, ue.ID)
 	if jwterr != nil {
 		// Error during generating user's jwtData
@@ -93,7 +95,7 @@ func (s service) Register(ctx context.Context, ue entity.User) (map[string]strin
 	// Save generated tokens with expiration into the DB
 	dberr = s.authrepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
-		// Error during saving user's JWT token
+		// Error during saving user's JWT
 		return token, errors.InternalServerError("")
 	}
 
@@ -140,11 +142,11 @@ type JWTdata struct {
 	RefTokenUUID    string `json:"refresh_token_uuid"`
 }
 
-// Helper to generate a JWT token for an user given the claims data.
+// Helper to generate a JWT for an user given the claims data.
 func (s service) generateJWT(ctx context.Context, claims jwt.Claims, signingKey string) (string, error) {
 	token, jwterr := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(signingKey))
 	if jwterr != nil {
-		s.logger.Error().Err(jwterr).Msg("Error occured during jwt token generation")
+		s.logger.Error().Err(jwterr).Msg("Error occured during JWT generation")
 		return "", jwterr
 	}
 	return token, nil

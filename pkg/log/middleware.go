@@ -1,4 +1,4 @@
-// This middleware is used to integrate zerolog extension created in logger.go into gin server.
+// log middleware is used to integrate zerolog extension created in logger.go into gin server.
 
 package log
 

@@ -14,12 +14,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// Client's JWT metadata
-type JWTMetaData struct {
-	AccessTokenUUID string `json:"access_token_uuid"`
-	UserID          uint64 `json:"user_id"`
-}
-
 func AuthMiddleware(logger log.Logger, authrepo Repository, accSecret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract Access token from header

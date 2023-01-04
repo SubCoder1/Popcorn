@@ -8,6 +8,7 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
+	"Popcorn/pkg/globalcontext"
 	"Popcorn/pkg/log"
 	"Popcorn/pkg/validation"
 	"context"
@@ -106,8 +107,9 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	server := gin.New()
 
 	// Declare global middlewares here
-	server.Use(log.LoggerGinExtension(logger)) // Forcing gin to use custom Logger instead of the default one
-	server.Use(gin.Recovery())                 // Recovery middleware recovers from any panics and writes a 500 if there was one
+	server.Use(log.LoggerGinExtension(logger))           // Forcing gin to use custom Logger instead of the default one
+	server.Use(gin.Recovery())                           // Recovery middleware recovers from any panics and writes a 500 if there was one
+	server.Use(globalcontext.UniqueIDMiddleware(logger)) // Fill up every request with unique UUID
 
 	// Create Repository instance which will be used internally being passed around through service params
 	authrepo := auth.NewRepository(dbConnWrp)

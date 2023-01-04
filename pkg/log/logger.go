@@ -56,9 +56,9 @@ func New(version string) Logger {
 // Returns a sub-logger by adding additional requestID context to it.
 // Helps in debugging issues.
 func (l *logger) WithCtx(ctx context.Context) Logger {
-	requestID := ctx.Value("ReqID").(string)
-	if requestID != "" {
-		return &logger{l.With().Str("ReqID", requestID).Timestamp().Caller().Stack().Logger()}
+	requestID := ctx.Value("ReqID")
+	if requestID != nil {
+		return &logger{l.With().Str("ReqID", requestID.(string)).Timestamp().Caller().Stack().Logger()}
 	}
 	return l
 }

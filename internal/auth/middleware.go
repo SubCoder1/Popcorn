@@ -74,7 +74,6 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, accSecret string) gi
 			gctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
-		fmt.Println(UserID, AccessTokenUUID)
 		// Verify if AccessTokenUUID:UserID is available in DB
 		valid, dberr := authrepo.TokenExists(gctx, logger, AccessTokenUUID.(string), uint64(UserID))
 		if dberr != nil {

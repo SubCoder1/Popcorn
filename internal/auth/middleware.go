@@ -30,7 +30,6 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// Check the parsed token for validity
 		if !vrftoken.Valid {
-
 			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -85,6 +84,10 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		// Set UserID in request's context
 		// This pair will be used further down in the handler chain
 		gctx.Set("UserID", uint64(UserID))
+		// Set User's accessToken which might be useful during logout
+		if tokenType == "access_token" {
+			gctx.Set("AccessToken", tokenUUID.(string))
+		}
 		gctx.Next()
 	}
 }

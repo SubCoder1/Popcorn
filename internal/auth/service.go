@@ -7,6 +7,7 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -22,6 +23,10 @@ import (
 type Service interface {
 	// Registers an user in Popcorn with valid user credentials
 	register(context.Context, entity.User) (map[string]string, error)
+	// Logs-in an user into Popcorn with valid user credentials
+	login(context.Context, entity.User) (map[string]string, error)
+	// Logs-out an user from Popcorn
+	logout(context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
 	refreshtoken(context.Context, uint64) (map[string]string, error)
 }
@@ -104,6 +109,70 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]strin
 	return token, nil
 }
 
+func (s service) login(ctx context.Context, request entity.User) (map[string]string, error) {
+	token := make(map[string]string)
+
+	// Validate the received user data which is serialized to entity.User struct
+	valerr := s.validateUserData(ctx, request)
+	if valerr != nil {
+		// Error occured during validation
+		return token, valerr
+	}
+
+	// Check if user is available in Popcorn
+	available, dberr := s.userrepo.Exists(ctx, s.logger, request.Username)
+	if dberr != nil {
+		// Error occured in Exists()
+		return token, dberr
+	} else if !available {
+		// User by the received username is not available in the platform
+		return token, errors.Unauthorized("Username or Password is incorrect")
+	}
+
+	// Fetch user's password hash from DB and validate against incoming password
+	user, dberr := s.userrepo.Get(ctx, s.logger, request.Username)
+	if dberr != nil {
+		// Error occured in Get()
+		return token, dberr
+	} else if !s.verifyPwDHash(ctx, request.Password, user.Password) {
+		fmt.Println(user)
+		// Invalid password
+		return token, errors.Unauthorized("Username or Password is incorrect")
+	}
+
+	// Generate JWT for the newly created user
+	userJWTData, jwterr := s.createToken(ctx, request.ID)
+	if jwterr != nil {
+		// Error during generating user's jwtData
+		return token, jwterr
+	}
+	// Save generated tokens with expiration into the DB
+	dberr = s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	if dberr != nil {
+		// Error during saving user's JWT
+		return token, dberr
+	}
+
+	token["access_token"] = userJWTData.AccessToken
+	token["refresh_token"] = userJWTData.RefreshToken
+	return token, nil
+}
+
+func (s service) logout(ctx context.Context) error {
+	userAccToken := ctx.Value("AccessToken")
+	if userAccToken == nil {
+		// AccessToken missing from context
+		return errors.InternalServerError("")
+	}
+	// Delete user's access token from the DB
+	dberr := s.authrepo.DelToken(ctx, s.logger, userAccToken.(string))
+	if dberr != nil {
+		// Error in DelToken
+		return dberr
+	}
+	return nil
+}
+
 func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]string, error) {
 	token := make(map[string]string)
 	// Create fresh JWT for user
@@ -146,7 +215,7 @@ func (s service) generatePwDHash(ctx context.Context, password string) (string, 
 
 // Helper to verify incoming password with the actual hash of user's set password.
 // Helpful during login verification of an user in Popcorn.
-func (s service) verifyPwDHash(password, hash string) bool {
+func (s service) verifyPwDHash(ctx context.Context, password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
@@ -166,7 +235,7 @@ func (s service) generateJWT(ctx context.Context, claims jwt.Claims, signingKey 
 	token, jwterr := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(signingKey))
 	if jwterr != nil {
 		s.logger.Error().Err(jwterr).Msg("Error occured during JWT generation")
-		return "", jwterr
+		return "", errors.InternalServerError("")
 	}
 	return token, nil
 }

@@ -16,6 +16,8 @@ func AuthHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFu
 	authgroup := router.Group("/api/auth")
 	{
 		authgroup.POST("/register", register(service, logger))
+		authgroup.POST("/login", login(service, logger))
+		authgroup.POST("/logout", AuthWithAcc, logout(service, logger))
 		authgroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
 	}
 }
@@ -48,6 +50,56 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 
 		// Registration successful, send the JWT as a response
 		gctx.JSON(http.StatusOK, token)
+	}
+}
+
+// login returns a handler which takes care of user login in Popcorn.
+func login(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		var user entity.User
+
+		// Serialize received data into User struct
+		if binderr := gctx.BindJSON(&user); binderr != nil {
+			// Error occured during serialization
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+
+		// Apply the service logic for User login in Popcorn
+		token, err := service.login(gctx, user)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+
+		// login successful, send the JWT as a response
+		gctx.JSON(http.StatusOK, token)
+	}
+}
+
+// Logout returns a handler which takes care of user logout from Popcorn.
+func logout(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		err := service.logout(gctx)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+
+		gctx.Status(http.StatusOK)
 	}
 }
 

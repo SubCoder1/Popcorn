@@ -44,7 +44,7 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")
-		return user, dberr
+		return user, errors.InternalServerError("")
 	} else if !available {
 		// User not available
 		return user, nil
@@ -52,7 +52,7 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 	if dberr := r.db.Client().HGetAll(ctx, "user:"+username).Scan(&user); dberr != nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGetAll() in user.Get")
-		return user, dberr
+		return user, errors.InternalServerError("")
 	}
 	return user, nil
 }

@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
@@ -24,15 +23,6 @@ func AuthHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFu
 // register returns a handler which takes care of user registration in Popcorn.
 func register(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		// Adding unique ID to the client's context
-		// Useful for debugging as logger is setup to fetch this ID
-		rqId, uuiderr := uuid.NewRandom()
-		if uuiderr != nil {
-			logger.Error().Err(uuiderr).Msg("Error during generating UUID for ReqID.")
-		} else {
-			gctx.Set("ReqID", rqId.String())
-		}
-
 		var user entity.User
 
 		// Serialize received data into User struct

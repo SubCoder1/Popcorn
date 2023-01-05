@@ -29,7 +29,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 			return
 		}
 		// Check the parsed token for validity
-		if _, ok := vrftoken.Claims.(jwt.Claims); !ok || !vrftoken.Valid {
+		if !vrftoken.Valid {
 
 			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return

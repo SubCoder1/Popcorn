@@ -40,7 +40,7 @@ func NewRepository(dbwrp *db.RedisDB) Repository {
 // Returns the user data object if user with the given username is found in the DB.
 func (r repository) Get(ctx context.Context, logger log.Logger, username string) (entity.User, error) {
 	user := entity.User{}
-	available, dberr := r.db.Client().HExists(ctx, "user:"+username, username).Result()
+	available, dberr := r.db.Client().HExists(ctx, "user:"+username, "username").Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HExists() in user.Get")

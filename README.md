@@ -5,6 +5,6 @@
 
 Lets assume you're very far away from your loved ones, but you'll want to watch a movie together. 
 Popcorn lets you create a virtual room where everyone can join, chat and watch movie together! 
-Moreover, viewers in the room will have the functionality to change default audio, subtitles **for themselves**.
+This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
 
 Its currently under development.

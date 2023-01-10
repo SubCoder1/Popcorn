@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -109,6 +110,7 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	// Declare global middlewares here
 	server.Use(log.LoggerGinExtension(logger))           // Forcing gin to use custom Logger instead of the default one
 	server.Use(gin.Recovery())                           // Recovery middleware recovers from any panics and writes a 500 if there was one
+	server.Use(cors.Default())                           // CORS middleware
 	server.Use(globalcontext.UniqueIDMiddleware(logger)) // Fill up every request with unique UUID
 
 	// Create Repository instance which will be used internally being passed around through service params

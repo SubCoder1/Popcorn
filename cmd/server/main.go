@@ -5,6 +5,7 @@ package main
 import (
 	"Popcorn/internal/auth"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/gang"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
@@ -115,17 +116,20 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	server.Use(globalcontext.UniqueIDMiddleware(logger)) // Fill up every request with unique UUID
 
 	// Create Repository instance which will be used internally being passed around through service params
-	authrepo := auth.NewRepository(dbConnWrp)
-	userrepo := user.NewRepository(dbConnWrp)
+	authRepo := auth.NewRepository(dbConnWrp)
+	userRepo := user.NewRepository(dbConnWrp)
+	gangRepo := gang.NewRepository(dbConnWrp)
 
 	// Declare internal middlewares here
-	accAuthMiddleware := auth.AuthMiddleware(logger, authrepo, "access_token", accSecret)
-	refAuthMiddleware := auth.AuthMiddleware(logger, authrepo, "refresh_token", refSecret)
+	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "access_token", accSecret)
+	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "refresh_token", refSecret)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
-	authservice := auth.NewService(accSecret, refSecret, userrepo, authrepo, logger)
-	auth.AuthHandlers(server, authservice, accAuthMiddleware, refAuthMiddleware, logger)
-
+	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
+	auth.AuthHandlers(server, authService, accAuthMiddleware, refAuthMiddleware, logger)
+	// Register internal package gang handler
+	gangService := gang.NewService(gangRepo, userRepo, logger)
+	gang.GangHandlers(server, gangService, accAuthMiddleware, logger)
 	return server
 }

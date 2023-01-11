@@ -149,15 +149,6 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 			true,           // Cookie-Secure
 			true,           // Cookie-HttpOnly
 		)
-		gctx.SetCookie(
-			"refresh_token", // Cookie-Name
-			"",              // Cookie-Value
-			0,               // Cookie-Expires
-			"/api",          // Cookie-Path (restricts to)
-			domain,          // Cookie-domain (restricts to)
-			true,            // Cookie-Secure
-			true,            // Cookie-HttpOnly
-		)
 
 		gctx.Status(http.StatusOK)
 	}

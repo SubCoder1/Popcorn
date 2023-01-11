@@ -7,7 +7,6 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -22,13 +21,13 @@ import (
 // Service layer of internal package auth which encapsulates authentication logic of Popcorn.
 type Service interface {
 	// Registers an user in Popcorn with valid user credentials
-	register(context.Context, entity.User) (map[string]string, error)
+	register(context.Context, entity.User) (map[string]any, error)
 	// Logs-in an user into Popcorn with valid user credentials
-	login(context.Context, entity.User) (map[string]string, error)
+	login(context.Context, entity.User) (map[string]any, error)
 	// Logs-out an user from Popcorn
 	logout(context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
-	refreshtoken(context.Context, uint64) (map[string]string, error)
+	refreshtoken(context.Context, uint64) (map[string]any, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -47,8 +46,8 @@ func NewService(accSigningKey string, refSigningKey string, userrepo user.Reposi
 	return service{accSigningKey, refSigningKey, userrepo, authrepo, logger}
 }
 
-func (s service) register(ctx context.Context, ue entity.User) (map[string]string, error) {
-	token := make(map[string]string)
+func (s service) register(ctx context.Context, ue entity.User) (map[string]any, error) {
+	token := make(map[string]any)
 
 	// Validate the received user data which is serialized to entity.User struct
 	valerr := s.validateUserData(ctx, ue)
@@ -106,11 +105,13 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]strin
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
+	token["access_token_exp"] = 15 * 60
+	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 
-func (s service) login(ctx context.Context, request entity.User) (map[string]string, error) {
-	token := make(map[string]string)
+func (s service) login(ctx context.Context, request entity.User) (map[string]any, error) {
+	token := make(map[string]any)
 
 	// Validate the received user data which is serialized to entity.User struct
 	valerr := s.validateUserData(ctx, request)
@@ -135,7 +136,6 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]str
 		// Error occured in Get()
 		return token, dberr
 	} else if !s.verifyPwDHash(ctx, request.Password, user.Password) {
-		fmt.Println(user)
 		// Invalid password
 		return token, errors.Unauthorized("Username or Password is incorrect")
 	}
@@ -155,6 +155,8 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]str
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
+	token["access_token_exp"] = 15 * 60
+	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 
@@ -173,8 +175,8 @@ func (s service) logout(ctx context.Context) error {
 	return nil
 }
 
-func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]string, error) {
-	token := make(map[string]string)
+func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]any, error) {
+	token := make(map[string]any)
 	// Create fresh JWT for user
 	userJWTData, jwterr := s.createToken(ctx, userID)
 	if jwterr != nil {
@@ -189,6 +191,8 @@ func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]st
 	}
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
+	token["access_token_exp"] = 15 * 60
+	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 

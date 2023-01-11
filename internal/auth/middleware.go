@@ -8,7 +8,6 @@ import (
 	"Popcorn/pkg/log"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -20,7 +19,7 @@ import (
 func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, secret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract token from header
-		token := fetchTokenFromHeader(gctx)
+		token := fetchTokenFromCookie(gctx, tokenType)
 		// Parse the token header with secret if the token is valid
 		vrftoken, valerr := parseIntoJWT(gctx, logger, secret, token)
 		if valerr != nil {
@@ -93,14 +92,18 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 }
 
 // Helper to fetch token string from Header.
-func fetchTokenFromHeader(gctx *gin.Context) string {
-	tokenheader := gctx.Request.Header.Get("Authorization")
-	// Token is in form Authorization: Bearer <token>
-	bearertoken := strings.Split(tokenheader, " ")
-	if len(bearertoken) == 2 {
-		return bearertoken[1]
+func fetchTokenFromCookie(gctx *gin.Context, tokenType string) string {
+	var token string
+	var err error
+	if tokenType == "access_token" {
+		token, err = gctx.Cookie("access_token")
+	} else {
+		token, err = gctx.Cookie("refresh_token")
 	}
-	return ""
+	if err != nil {
+		return ""
+	}
+	return token
 }
 
 // Helper to parse and return token string fetched from header.

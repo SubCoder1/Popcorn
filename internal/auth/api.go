@@ -7,9 +7,12 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
+
+var domain string = os.Getenv("SRV_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
 func AuthHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
@@ -48,8 +51,27 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// Registration successful, send the JWT as a response
-		gctx.JSON(http.StatusOK, token)
+		// Registration successful, Add the jwt in request's cookie with httpOnly as true
+		gctx.SetCookie(
+			"access_token",                  // Cookie-Name
+			token["access_token"].(string),  // Cookie-Value
+			token["access_token_exp"].(int), // Cookie-Expires
+			"/api",                          // Cookie-Path (restricts to)
+			domain,                          // Cookie-domain (restricts to)
+			true,                            // Cookie-Secure
+			true,                            // Cookie-HttpOnly
+		)
+		gctx.SetCookie(
+			"refresh_token",                  // Cookie-Name
+			token["refresh_token"].(string),  // Cookie-Value
+			token["refresh_token_exp"].(int), // Cookie-Expires
+			"/api",                           // Cookie-Path (restricts to)
+			domain,                           // Cookie-domain (restricts to)
+			true,                             // Cookie-Secure
+			true,                             // Cookie-HttpOnly
+		)
+
+		gctx.Status(http.StatusOK)
 	}
 }
 
@@ -79,8 +101,27 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// login successful, send the JWT as a response
-		gctx.JSON(http.StatusOK, token)
+		// login successful, Add the jwt in request's cookie with httpOnly as true
+		gctx.SetCookie(
+			"access_token",                  // Cookie-Name
+			token["access_token"].(string),  // Cookie-Value
+			token["access_token_exp"].(int), // Cookie-Expires
+			"/api",                          // Cookie-Path (restricts to)
+			domain,                          // Cookie-domain (restricts to)
+			true,                            // Cookie-Secure
+			true,                            // Cookie-HttpOnly
+		)
+		gctx.SetCookie(
+			"refresh_token",                  // Cookie-Name
+			token["refresh_token"].(string),  // Cookie-Value
+			token["refresh_token_exp"].(int), // Cookie-Expires
+			"/api",                           // Cookie-Path (restricts to)
+			domain,                           // Cookie-domain (restricts to)
+			true,                             // Cookie-Secure
+			true,                             // Cookie-HttpOnly
+		)
+
+		gctx.Status(http.StatusOK)
 	}
 }
 
@@ -98,6 +139,25 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
+		// Delete access_token and refresh_token cookie from request
+		gctx.SetCookie(
+			"access_token", // Cookie-Name
+			"",             // Cookie-Value
+			0,              // Cookie-Expires
+			"/api",         // Cookie-Path (restricts to)
+			domain,         // Cookie-domain (restricts to)
+			true,           // Cookie-Secure
+			true,           // Cookie-HttpOnly
+		)
+		gctx.SetCookie(
+			"refresh_token", // Cookie-Name
+			"",              // Cookie-Value
+			0,               // Cookie-Expires
+			"/api",          // Cookie-Path (restricts to)
+			domain,          // Cookie-domain (restricts to)
+			true,            // Cookie-Secure
+			true,            // Cookie-HttpOnly
+		)
 
 		gctx.Status(http.StatusOK)
 	}
@@ -128,7 +188,26 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// Successfully created a new JWT for user
-		gctx.JSON(http.StatusOK, token)
+		// Refresh successful, Add the jwt in request's cookie with httpOnly as true
+		gctx.SetCookie(
+			"access_token",                  // Cookie-Name
+			token["access_token"].(string),  // Cookie-Value
+			token["access_token_exp"].(int), // Cookie-Expires
+			"/api",                          // Cookie-Path (restricts to)
+			domain,                          // Cookie-domain (restricts to)
+			true,                            // Cookie-Secure
+			true,                            // Cookie-HttpOnly
+		)
+		gctx.SetCookie(
+			"refresh_token",                  // Cookie-Name
+			token["refresh_token"].(string),  // Cookie-Value
+			token["refresh_token_exp"].(int), // Cookie-Expires
+			"/api",                           // Cookie-Path (restricts to)
+			domain,                           // Cookie-domain (restricts to)
+			true,                             // Cookie-Secure
+			true,                             // Cookie-HttpOnly
+		)
+
+		gctx.Status(http.StatusOK)
 	}
 }

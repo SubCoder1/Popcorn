@@ -75,6 +75,7 @@ func main() {
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
+		logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
 		if err := srv.ListenAndServe(); err != nil {
 			logger.Error().Err(err).Msg("Error in ListenAndServe()")
 		}

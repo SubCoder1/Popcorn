@@ -24,7 +24,7 @@ type Service interface {
 	// Registers an user in Popcorn with valid user credentials
 	register(context.Context, entity.User) (map[string]any, error)
 	// Logs-in an user into Popcorn with valid user credentials
-	login(context.Context, entity.User) (map[string]any, error)
+	login(context.Context, entity.UserLogin) (map[string]any, error)
 	// Logs-out an user from Popcorn
 	logout(context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
@@ -113,7 +113,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	return token, nil
 }
 
-func (s service) login(ctx context.Context, request entity.User) (map[string]any, error) {
+func (s service) login(ctx context.Context, request entity.UserLogin) (map[string]any, error) {
 	token := make(map[string]any)
 
 	// Validate the received user data which is serialized to entity.User struct
@@ -144,7 +144,7 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 	}
 
 	// Generate JWT for the newly created user
-	userJWTData, jwterr := s.createToken(ctx, request.ID)
+	userJWTData, jwterr := s.createToken(ctx, user.ID)
 	if jwterr != nil {
 		// Error during generating user's jwtData
 		return token, jwterr
@@ -158,7 +158,7 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = 15 * 60
+	token["access_token_exp"] = (4 * 60) * 60
 	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
@@ -194,13 +194,13 @@ func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]an
 	}
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = 15 * 60
+	token["access_token_exp"] = (4 * 60) * 60
 	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
-func (s service) validateUserData(ctx context.Context, ue entity.User) error {
+func (s service) validateUserData(ctx context.Context, ue any) error {
 	_, valerr := govalidator.ValidateStruct(ue)
 	if valerr != nil {
 		valerr := valerr.(govalidator.Errors).Errors()

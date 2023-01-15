@@ -73,6 +73,7 @@ func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) 
 	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
 		client.HSet(ctx, key, "id", ue.ID)
 		client.HSet(ctx, key, "username", ue.Username)
+		client.HSet(ctx, key, "full_name", ue.FullName)
 		client.HSet(ctx, key, "password", ue.Password)
 		return nil
 	}); dberr != nil {

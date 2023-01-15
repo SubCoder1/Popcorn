@@ -7,6 +7,7 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -55,6 +56,8 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 		// Error occured during validation
 		return token, valerr
 	}
+	// Trim full_name before saving
+	ue.FullName = strings.Trim(ue.FullName, " ")
 
 	// Check for user availability against user.Username
 	available, dberr := s.userrepo.Exists(ctx, s.logger, ue.Username)

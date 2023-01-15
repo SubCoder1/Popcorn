@@ -108,7 +108,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = 15 * 60
+	token["access_token_exp"] = (4 * 60) * 60
 	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
 	return token, nil
 }

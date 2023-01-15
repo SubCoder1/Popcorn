@@ -254,7 +254,7 @@ func (s service) createToken(ctx context.Context, userID uint64) (*JWTdata, erro
 
 	jd.UserID = userID
 	jd.AccessTokenUUID = uuid.NewString()
-	jd.AccTokenExp = time.Now().Add(time.Minute * 15).Unix()
+	jd.AccTokenExp = time.Now().Add(time.Hour * 4).Unix()
 	jd.RefTokenUUID = uuid.NewString()
 	jd.RefTokenExp = time.Now().Add(time.Hour * 24 * 7).Unix()
 

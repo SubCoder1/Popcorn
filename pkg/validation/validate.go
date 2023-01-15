@@ -4,6 +4,7 @@ package validation
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -35,6 +36,12 @@ func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 			}
 		}
 		return hasChar && hasNum
+	})
+	// This custom validation validates user full name.
+	// Only Alphabets with whitespace is allowed.
+	govalidator.TagMap["alphawithspace"] = govalidator.Validator(func(full_name string) bool {
+		r := regexp.MustCompile("^[a-zA-Z ]*$")
+		return r.MatchString(full_name)
 	})
 	logger.WithCtx(ctx).Info().Msg("Successfully registered custom validations.")
 }

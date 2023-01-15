@@ -41,7 +41,7 @@ func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 	// Only Alphabets with whitespace is allowed.
 	govalidator.TagMap["alphawithspace"] = govalidator.Validator(func(full_name string) bool {
 		r := regexp.MustCompile("^[a-zA-Z ]*$")
-		return r.MatchString(full_name)
+		return !r.MatchString(full_name)
 	})
 	logger.WithCtx(ctx).Info().Msg("Successfully registered custom validations.")
 }

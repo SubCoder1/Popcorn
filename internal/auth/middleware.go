@@ -16,7 +16,7 @@ import (
 // This middleware is used to verify and validate incoming JWT, TokenType can either be "access_token" or "refresh_token".
 // Access-Secret and Refresh-Secret will be used to parse access_token and refresh_token respectively.
 // Blocks the request to go further into other handlers if token is invalid.
-func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, secret string) gin.HandlerFunc {
+func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, secret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract token from header
 		token := fetchTokenFromCookie(gctx, tokenType)
@@ -55,7 +55,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 			return
 		}
 		// Verify if TokenUUID:UserID is available in DB
-		valid, dberr := authrepo.TokenExists(gctx, logger, tokenUUID.(string), username)
+		valid, dberr := authRepo.TokenExists(gctx, logger, tokenUUID.(string), username)
 		if dberr != nil {
 			// Error in TokenExists
 			gctx.AbortWithStatus(http.StatusInternalServerError)
@@ -67,7 +67,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// In case of tokenType = "refresh_token", delete the previous refresh_token first
 		if tokenType == "refresh_token" {
-			dberr = authrepo.DelToken(gctx, logger, tokenUUID.(string))
+			dberr = authRepo.DelToken(gctx, logger, tokenUUID.(string))
 			if dberr != nil {
 				// Error in DelToken
 				err, ok := dberr.(errors.ErrorResponse)

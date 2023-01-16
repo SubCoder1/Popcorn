@@ -8,8 +8,8 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
-	"Popcorn/pkg/globalcontext"
 	"Popcorn/pkg/log"
+	"Popcorn/pkg/middlewares"
 	"Popcorn/pkg/validation"
 	"context"
 	"fmt"
@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -68,10 +67,12 @@ func main() {
 
 	// Fetching server address and port from the environment
 	srvaddr, srvport := os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")
+	// Fetching client ACC_CTL_ALLOW_ORG for CORS middleware
+	client_addr := os.Getenv("ACC_CTL_ALLOW_ORG")
 	// Running the server with defined addr and port.
 	srv := &http.Server{
 		Addr:    srvaddr + ":" + srvport,
-		Handler: buildHandler(ctx, dbConnWrp, logger),
+		Handler: buildHandler(ctx, dbConnWrp, logger, client_addr),
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
@@ -94,7 +95,7 @@ func main() {
 }
 
 // Helper to build up the server and register handlers from internal packages in Popcorn
-func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) *gin.Engine {
+func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger, client_addr string) *gin.Engine {
 	// Set any environment variables to be used in handlers here
 	accSecret := os.Getenv("ACCESS_SECRET")
 	refSecret := os.Getenv("REFRESH_SECRET")
@@ -109,10 +110,10 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger)
 	server := gin.New()
 
 	// Declare global middlewares here
-	server.Use(log.LoggerGinExtension(logger))           // Forcing gin to use custom Logger instead of the default one
-	server.Use(gin.Recovery())                           // Recovery middleware recovers from any panics and writes a 500 if there was one
-	server.Use(cors.Default())                           // CORS middleware
-	server.Use(globalcontext.UniqueIDMiddleware(logger)) // Fill up every request with unique UUID
+	server.Use(log.LoggerGinExtension(logger))          // Forcing gin to use custom Logger instead of the default one
+	server.Use(gin.Recovery())                          // Recovery middleware recovers from any panics and writes a 500 if there was one
+	server.Use(middlewares.UniqueIDMiddleware(logger))  // Fill up every request with unique UUID
+	server.Use(middlewares.CORSMiddleware(client_addr)) // CORS middleware
 
 	// Create Repository instance which will be used internally being passed around through service params
 	authrepo := auth.NewRepository(dbConnWrp)

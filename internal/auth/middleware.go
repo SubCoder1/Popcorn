@@ -48,14 +48,14 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// Successfully saved UserID is stored in float64 format even though type uint64 is passed during signing
 		// Need to convert to uint64 later
-		UserID, ok := tokenclaims["user_id"].(float64)
+		username, ok := tokenclaims["username"].(string)
 		if !ok {
 			// Type assertion error
 			gctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 		// Verify if TokenUUID:UserID is available in DB
-		valid, dberr := authrepo.TokenExists(gctx, logger, tokenUUID.(string), uint64(UserID))
+		valid, dberr := authrepo.TokenExists(gctx, logger, tokenUUID.(string), username)
 		if dberr != nil {
 			// Error in TokenExists
 			gctx.AbortWithStatus(http.StatusInternalServerError)
@@ -82,7 +82,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// Set UserID in request's context
 		// This pair will be used further down in the handler chain
-		gctx.Set("UserID", uint64(UserID))
+		gctx.Set("Username", username)
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
 			gctx.Set("access_token", tokenUUID.(string))

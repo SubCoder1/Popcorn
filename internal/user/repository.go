@@ -22,7 +22,7 @@ type Repository interface {
 	Exists(context.Context, log.Logger, string) (bool, error)
 	// Increments the current number of Users to 1 and returns the new total.
 	// Util used during user registration.
-	IncrTotal(context.Context, log.Logger) (uint64, error)
+	IncrTotal(context.Context, log.Logger) error
 }
 
 // repository struct of user Repository.
@@ -71,7 +71,6 @@ func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) 
 	// Add the user into the DB
 	key := "user:" + ue.Username
 	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
-		client.HSet(ctx, key, "id", ue.ID)
 		client.HSet(ctx, key, "username", ue.Username)
 		client.HSet(ctx, key, "full_name", ue.FullName)
 		client.HSet(ctx, key, "password", ue.Password)
@@ -99,12 +98,12 @@ func (r repository) Exists(ctx context.Context, logger log.Logger, username stri
 }
 
 // Increments the total number of users in Popcorn.
-func (r repository) IncrTotal(ctx context.Context, logger log.Logger) (uint64, error) {
+func (r repository) IncrTotal(ctx context.Context, logger log.Logger) error {
 	newTotal, dberr := r.db.Client().IncrBy(ctx, "users", 1).Result()
 	if dberr != nil {
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.IncrBy in user.IncTotal")
-		return 0, errors.InternalServerError("")
+		return errors.InternalServerError("")
 	}
 	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Current total users in Popcorn - %d", newTotal))
-	return uint64(newTotal), nil
+	return nil
 }

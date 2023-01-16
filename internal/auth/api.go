@@ -16,7 +16,7 @@ import (
 var domain string = os.Getenv("SRV_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
-func AuthHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
+func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
 	authgroup := router.Group("/api/auth")
 	{
 		authgroup.POST("/register", register(service, logger))
@@ -187,7 +187,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch UserID from context
-		userID, ok := gctx.Value("UserID").(uint64)
+		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in refresh_token")
@@ -195,7 +195,7 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		// Generate fresh pair of JWT for user
-		token, err := service.refreshtoken(gctx, userID)
+		token, err := service.refreshtoken(gctx, username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

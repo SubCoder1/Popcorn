@@ -37,14 +37,14 @@ type Service interface {
 type service struct {
 	accSigningKey string
 	refSigningKey string
-	userrepo      user.Repository
-	authrepo      Repository
+	userRepo      user.Repository
+	authRepo      Repository
 	logger        log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(accSigningKey string, refSigningKey string, userrepo user.Repository, authrepo Repository, logger log.Logger) Service {
-	return service{accSigningKey, refSigningKey, userrepo, authrepo, logger}
+func NewService(accSigningKey string, refSigningKey string, userRepo user.Repository, authRepo Repository, logger log.Logger) Service {
+	return service{accSigningKey, refSigningKey, userRepo, authRepo, logger}
 }
 
 func (s service) register(ctx context.Context, ue entity.User) (map[string]any, error) {
@@ -60,7 +60,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	ue.FullName = strings.Trim(ue.FullName, " ")
 
 	// Check for user availability against user.Username
-	available, dberr := s.userrepo.Exists(ctx, s.logger, ue.Username)
+	available, dberr := s.userRepo.Exists(ctx, s.logger, ue.Username)
 	if dberr != nil {
 		// Error occured in Exists()
 		return token, errors.InternalServerError("")
@@ -72,7 +72,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 
 	// users is a global key in db used to store current total number of users in Popcorn
 	// Increment users by 1 and use that value as userID
-	currTotal, dberr := s.userrepo.IncrTotal(ctx, s.logger)
+	currTotal, dberr := s.userRepo.IncrTotal(ctx, s.logger)
 	if dberr != nil {
 		// Error occured in IncrTotal()
 		return token, errors.InternalServerError("")
@@ -87,7 +87,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	ue.Password = hasheduserpwd
 
 	// Save the user in the DB
-	_, dberr = s.userrepo.Set(ctx, s.logger, ue)
+	_, dberr = s.userRepo.Set(ctx, s.logger, ue)
 	if dberr != nil {
 		// Error occured in Set()
 		return token, dberr
@@ -100,7 +100,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 		return token, errors.InternalServerError("")
 	}
 	// Save generated tokens with expiration into the DB
-	dberr = s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	dberr = s.authRepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
 		// Error during saving user's JWT
 		return token, errors.InternalServerError("")
@@ -126,7 +126,7 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 	}
 
 	// Check if user is available in Popcorn
-	available, dberr := s.userrepo.Exists(ctx, s.logger, request.Username)
+	available, dberr := s.userRepo.Exists(ctx, s.logger, request.Username)
 	if dberr != nil {
 		// Error occured in Exists()
 		return token, dberr
@@ -136,7 +136,7 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 	}
 
 	// Fetch user's password hash from DB and validate against incoming password
-	user, dberr := s.userrepo.Get(ctx, s.logger, request.Username)
+	user, dberr := s.userRepo.Get(ctx, s.logger, request.Username)
 	if dberr != nil {
 		// Error occured in Get()
 		return token, dberr
@@ -152,7 +152,7 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 		return token, jwterr
 	}
 	// Save generated tokens with expiration into the DB
-	dberr = s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	dberr = s.authRepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
 		// Error during saving user's JWT
 		return token, dberr
@@ -174,7 +174,7 @@ func (s service) logout(ctx context.Context) error {
 		return errors.InternalServerError("")
 	}
 	// Delete user's access_token from the DB
-	dberr := s.authrepo.DelToken(ctx, s.logger, userAccToken.(string))
+	dberr := s.authRepo.DelToken(ctx, s.logger, userAccToken.(string))
 	if dberr != nil {
 		// Error in DelToken
 		return dberr
@@ -191,7 +191,7 @@ func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]an
 		return token, errors.InternalServerError("")
 	}
 	// Save generated tokens with expiration into the DB
-	dberr := s.authrepo.SetToken(ctx, s.logger, userJWTData)
+	dberr := s.authRepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
 		// Error during saving user's JWT
 		return token, errors.InternalServerError("")

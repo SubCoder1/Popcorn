@@ -85,7 +85,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		gctx.Set("UserID", uint64(UserID))
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
-			gctx.Set("AccessToken", tokenUUID.(string))
+			gctx.Set("access_token", tokenUUID.(string))
 		}
 		gctx.Next()
 	}
@@ -93,17 +93,17 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 
 // Helper to fetch token string from Header.
 func fetchTokenFromCookie(gctx *gin.Context, tokenType string) string {
-	var token string
+	var token *http.Cookie
 	var err error
 	if tokenType == "access_token" {
-		token, err = gctx.Cookie("access_token")
+		token, err = gctx.Request.Cookie("access_token")
 	} else {
-		token, err = gctx.Cookie("refresh_token")
+		token, err = gctx.Request.Cookie("refresh_token")
 	}
 	if err != nil {
 		return ""
 	}
-	return token
+	return token.Value
 }
 
 // Helper to parse and return token string fetched from header.

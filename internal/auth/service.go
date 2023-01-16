@@ -108,8 +108,10 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = (4 * 60) * 60
-	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
+	token["access_token_exp"] = time.Now().Add(time.Hour * 4)
+	token["access_token_maxAge"] = (4 * 60) * 60
+	token["refresh_token_exp"] = time.Now().Add(time.Hour * 24 * 7)
+	token["refresh_token_maxAge"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 
@@ -158,18 +160,20 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = (4 * 60) * 60
-	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
+	token["access_token_exp"] = time.Now().Add(time.Hour * 4)
+	token["access_token_maxAge"] = (4 * 60) * 60
+	token["refresh_token_exp"] = time.Now().Add(time.Hour * 24 * 7)
+	token["refresh_token_maxAge"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 
 func (s service) logout(ctx context.Context) error {
-	userAccToken := ctx.Value("AccessToken")
+	userAccToken := ctx.Value("access_token")
 	if userAccToken == nil {
-		// AccessToken missing from context
+		// access_token or refresh_token missing from context
 		return errors.InternalServerError("")
 	}
-	// Delete user's access token from the DB
+	// Delete user's access_token from the DB
 	dberr := s.authrepo.DelToken(ctx, s.logger, userAccToken.(string))
 	if dberr != nil {
 		// Error in DelToken
@@ -194,8 +198,10 @@ func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]an
 	}
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken
-	token["access_token_exp"] = (4 * 60) * 60
-	token["refresh_token_exp"] = ((24 * 7) * 60) * 60
+	token["access_token_exp"] = time.Now().Add(time.Hour * 4)
+	token["access_token_maxAge"] = (4 * 60) * 60
+	token["refresh_token_exp"] = time.Now().Add(time.Hour * 24 * 7)
+	token["refresh_token_maxAge"] = ((24 * 7) * 60) * 60
 	return token, nil
 }
 

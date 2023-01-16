@@ -47,7 +47,7 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 		return user, errors.InternalServerError("")
 	} else if !available {
 		// User not available
-		return user, nil
+		return user, errors.NotFound("User not available")
 	}
 	if dberr := r.db.Client().HGetAll(ctx, "user:"+username).Scan(&user); dberr != nil {
 		// Error during interacting with DB
@@ -92,7 +92,7 @@ func (r repository) Exists(ctx context.Context, logger log.Logger, username stri
 		return false, errors.InternalServerError("")
 	} else if available == 0 {
 		// User not available
-		return false, nil
+		return false, errors.NotFound("User not available")
 	}
 	return true, nil
 }

@@ -128,9 +128,10 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger,
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
-	auth.AuthHandlers(server, authService, accAuthMiddleware, refAuthMiddleware, logger)
-	// Register internal package gang handler
-	gangService := gang.NewService(gangRepo, userRepo, logger)
-	gang.GangHandlers(server, gangService, accAuthMiddleware, logger)
+	auth.APIHandlers(server, authService, accAuthMiddleware, refAuthMiddleware, logger)
+	// Register internal package user handler
+	userService := user.NewService(userRepo, logger)
+	user.APIHandlers(server, userService, accAuthMiddleware, logger)
+
 	return server
 }

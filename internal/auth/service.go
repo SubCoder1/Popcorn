@@ -28,7 +28,7 @@ type Service interface {
 	// Logs-out an user from Popcorn
 	logout(context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
-	refreshtoken(context.Context, uint64) (map[string]any, error)
+	refreshtoken(context.Context, string) (map[string]any, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -72,12 +72,11 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 
 	// users is a global key in db used to store current total number of users in Popcorn
 	// Increment users by 1 and use that value as userID
-	currTotal, dberr := s.userRepo.IncrTotal(ctx, s.logger)
+	dberr = s.userRepo.IncrTotal(ctx, s.logger)
 	if dberr != nil {
 		// Error occured in IncrTotal()
 		return token, errors.InternalServerError("")
 	}
-	ue.ID = currTotal
 
 	// Hash user password and save the credentials in the user object
 	hasheduserpwd, hasherr := s.generatePwDHash(ctx, ue.Password)
@@ -94,7 +93,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	}
 
 	// Generate JWT for the newly created user
-	userJWTData, jwterr := s.createToken(ctx, ue.ID)
+	userJWTData, jwterr := s.createToken(ctx, ue.Username)
 	if jwterr != nil {
 		// Error during generating user's jwtData
 		return token, errors.InternalServerError("")
@@ -146,7 +145,7 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 	}
 
 	// Generate JWT for the newly created user
-	userJWTData, jwterr := s.createToken(ctx, user.ID)
+	userJWTData, jwterr := s.createToken(ctx, user.Username)
 	if jwterr != nil {
 		// Error during generating user's jwtData
 		return token, jwterr
@@ -182,10 +181,10 @@ func (s service) logout(ctx context.Context) error {
 	return nil
 }
 
-func (s service) refreshtoken(ctx context.Context, userID uint64) (map[string]any, error) {
+func (s service) refreshtoken(ctx context.Context, username string) (map[string]any, error) {
 	token := make(map[string]any)
 	// Create fresh JWT for user
-	userJWTData, jwterr := s.createToken(ctx, userID)
+	userJWTData, jwterr := s.createToken(ctx, username)
 	if jwterr != nil {
 		// Error during generating user's jwtData
 		return token, errors.InternalServerError("")
@@ -234,7 +233,7 @@ func (s service) verifyPwDHash(ctx context.Context, password, hash string) bool 
 }
 
 type JWTdata struct {
-	UserID          uint64 `json:"user_id"`
+	Username        string `json:"username"`
 	AccessToken     string `json:"access_token"`
 	AccTokenExp     int64  `json:"access_token_expiry"`
 	AccessTokenUUID string `json:"access_token_uuid"`
@@ -254,11 +253,11 @@ func (s service) generateJWT(ctx context.Context, claims jwt.Claims, signingKey 
 }
 
 // Helper to create and return jwtData for an user with userID passed as param.
-func (s service) createToken(ctx context.Context, userID uint64) (*JWTdata, error) {
+func (s service) createToken(ctx context.Context, username string) (*JWTdata, error) {
 	jd := &JWTdata{}
 	var jwterr error
 
-	jd.UserID = userID
+	jd.Username = username
 	jd.AccessTokenUUID = uuid.NewString()
 	jd.AccTokenExp = time.Now().Add(time.Hour * 4).Unix()
 	jd.RefTokenUUID = uuid.NewString()
@@ -269,7 +268,7 @@ func (s service) createToken(ctx context.Context, userID uint64) (*JWTdata, erro
 	jd.AccessToken, jwterr = s.generateJWT(ctx, jwt.MapClaims{
 		"authorized":        true,
 		"access_token_uuid": jd.AccessTokenUUID,
-		"user_id":           userID,
+		"username":          username,
 		"exp":               jd.AccTokenExp,
 	}, s.accSigningKey)
 	if jwterr != nil {
@@ -280,7 +279,7 @@ func (s service) createToken(ctx context.Context, userID uint64) (*JWTdata, erro
 	// Pass RefreshTokenSigningKey fetched from env to service
 	jd.RefreshToken, jwterr = s.generateJWT(ctx, jwt.MapClaims{
 		"refresh_token_uuid": jd.RefTokenUUID,
-		"user_id":            userID,
+		"username":           username,
 		"exp":                jd.RefTokenExp,
 	}, s.refSigningKey)
 	if jwterr != nil {

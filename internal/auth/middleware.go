@@ -16,7 +16,7 @@ import (
 // This middleware is used to verify and validate incoming JWT, TokenType can either be "access_token" or "refresh_token".
 // Access-Secret and Refresh-Secret will be used to parse access_token and refresh_token respectively.
 // Blocks the request to go further into other handlers if token is invalid.
-func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, secret string) gin.HandlerFunc {
+func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, secret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract token from header
 		token := fetchTokenFromCookie(gctx, tokenType)
@@ -48,14 +48,14 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// Successfully saved UserID is stored in float64 format even though type uint64 is passed during signing
 		// Need to convert to uint64 later
-		UserID, ok := tokenclaims["user_id"].(float64)
+		username, ok := tokenclaims["username"].(string)
 		if !ok {
 			// Type assertion error
 			gctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 		// Verify if TokenUUID:UserID is available in DB
-		valid, dberr := authrepo.TokenExists(gctx, logger, tokenUUID.(string), uint64(UserID))
+		valid, dberr := authRepo.TokenExists(gctx, logger, tokenUUID.(string), username)
 		if dberr != nil {
 			// Error in TokenExists
 			gctx.AbortWithStatus(http.StatusInternalServerError)
@@ -67,7 +67,7 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// In case of tokenType = "refresh_token", delete the previous refresh_token first
 		if tokenType == "refresh_token" {
-			dberr = authrepo.DelToken(gctx, logger, tokenUUID.(string))
+			dberr = authRepo.DelToken(gctx, logger, tokenUUID.(string))
 			if dberr != nil {
 				// Error in DelToken
 				err, ok := dberr.(errors.ErrorResponse)
@@ -82,10 +82,10 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 		}
 		// Set UserID in request's context
 		// This pair will be used further down in the handler chain
-		gctx.Set("UserID", uint64(UserID))
+		gctx.Set("Username", username)
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
-			gctx.Set("AccessToken", tokenUUID.(string))
+			gctx.Set("access_token", tokenUUID.(string))
 		}
 		gctx.Next()
 	}
@@ -93,17 +93,17 @@ func AuthMiddleware(logger log.Logger, authrepo Repository, tokenType string, se
 
 // Helper to fetch token string from Header.
 func fetchTokenFromCookie(gctx *gin.Context, tokenType string) string {
-	var token string
+	var token *http.Cookie
 	var err error
 	if tokenType == "access_token" {
-		token, err = gctx.Cookie("access_token")
+		token, err = gctx.Request.Cookie("access_token")
 	} else {
-		token, err = gctx.Cookie("refresh_token")
+		token, err = gctx.Request.Cookie("refresh_token")
 	}
 	if err != nil {
 		return ""
 	}
-	return token
+	return token.Value
 }
 
 // Helper to parse and return token string fetched from header.

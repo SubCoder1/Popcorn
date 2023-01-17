@@ -1,7 +1,4 @@
-// Context middleware is used in gin to populate request context with unique ID.
-// This ID will be helpful in debugging issues happening for a request in handler chain.
-
-package globalcontext
+package middlewares
 
 import (
 	"Popcorn/pkg/log"

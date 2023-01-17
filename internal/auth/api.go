@@ -8,6 +8,7 @@ import (
 	"Popcorn/pkg/log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,12 +16,12 @@ import (
 var domain string = os.Getenv("SRV_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
-func AuthHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
+func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
 	authgroup := router.Group("/api/auth")
 	{
 		authgroup.POST("/register", register(service, logger))
 		authgroup.POST("/login", login(service, logger))
-		authgroup.POST("/logout", AuthWithAcc, logout(service, logger))
+		authgroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
 		authgroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
 	}
 }
@@ -52,24 +53,30 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Registration successful, Add the jwt in request's cookie with httpOnly as true
-		gctx.SetCookie(
-			"access_token",                  // Cookie-Name
-			token["access_token"].(string),  // Cookie-Value
-			token["access_token_exp"].(int), // Cookie-Expires
-			"/api",                          // Cookie-Path (restricts to)
-			domain,                          // Cookie-domain (restricts to)
-			true,                            // Cookie-Secure
-			true,                            // Cookie-HttpOnly
-		)
-		gctx.SetCookie(
-			"refresh_token",                  // Cookie-Name
-			token["refresh_token"].(string),  // Cookie-Value
-			token["refresh_token_exp"].(int), // Cookie-Expires
-			"/api",                           // Cookie-Path (restricts to)
-			domain,                           // Cookie-domain (restricts to)
-			true,                             // Cookie-Secure
-			true,                             // Cookie-HttpOnly
-		)
+		access_token_cookie := &http.Cookie{
+			Name:     "access_token",
+			Value:    token["access_token"].(string),
+			Expires:  token["access_token_exp"].(time.Time),
+			MaxAge:   token["access_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, access_token_cookie)
+		refresh_token_cookie := &http.Cookie{
+			Name:     "refresh_token",
+			Value:    token["refresh_token"].(string),
+			Expires:  token["refresh_token_exp"].(time.Time),
+			MaxAge:   token["refresh_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
 		gctx.Status(http.StatusOK)
 	}
@@ -82,10 +89,12 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 
 		// Serialize received data into User struct
 		if binderr := gctx.BindJSON(&user); binderr != nil {
-			// Error occured during serialization
-			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
-			return
+			if user.Username == "" || user.Password == "" {
+				// Error occured during serialization
+				logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+				gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+				return
+			}
 		}
 
 		// Apply the service logic for User login in Popcorn
@@ -102,24 +111,30 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// login successful, Add the jwt in request's cookie with httpOnly as true
-		gctx.SetCookie(
-			"access_token",                  // Cookie-Name
-			token["access_token"].(string),  // Cookie-Value
-			token["access_token_exp"].(int), // Cookie-Expires
-			"/api",                          // Cookie-Path (restricts to)
-			domain,                          // Cookie-domain (restricts to)
-			true,                            // Cookie-Secure
-			true,                            // Cookie-HttpOnly
-		)
-		gctx.SetCookie(
-			"refresh_token",                  // Cookie-Name
-			token["refresh_token"].(string),  // Cookie-Value
-			token["refresh_token_exp"].(int), // Cookie-Expires
-			"/api",                           // Cookie-Path (restricts to)
-			domain,                           // Cookie-domain (restricts to)
-			true,                             // Cookie-Secure
-			true,                             // Cookie-HttpOnly
-		)
+		access_token_cookie := &http.Cookie{
+			Name:     "access_token",
+			Value:    token["access_token"].(string),
+			Expires:  token["access_token_exp"].(time.Time),
+			MaxAge:   token["access_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, access_token_cookie)
+		refresh_token_cookie := &http.Cookie{
+			Name:     "refresh_token",
+			Value:    token["refresh_token"].(string),
+			Expires:  token["refresh_token_exp"].(time.Time),
+			MaxAge:   token["refresh_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
 		gctx.Status(http.StatusOK)
 	}
@@ -139,16 +154,31 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
-		// Delete access_token and refresh_token cookie from request
-		gctx.SetCookie(
-			"access_token", // Cookie-Name
-			"",             // Cookie-Value
-			0,              // Cookie-Expires
-			"/api",         // Cookie-Path (restricts to)
-			domain,         // Cookie-domain (restricts to)
-			true,           // Cookie-Secure
-			true,           // Cookie-HttpOnly
-		)
+		// Delete access_token cookie from client's header
+		access_token_cookie := &http.Cookie{
+			Name:     "access_token",
+			Value:    "",
+			Expires:  time.Now(),
+			MaxAge:   0,
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, access_token_cookie)
+		refresh_token_cookie := &http.Cookie{
+			Name:     "refresh_token",
+			Value:    "",
+			Expires:  time.Now(),
+			MaxAge:   0,
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
 		gctx.Status(http.StatusOK)
 	}
@@ -159,7 +189,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch UserID from context
-		userID, ok := gctx.Value("UserID").(uint64)
+		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in refresh_token")
@@ -167,7 +197,7 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		// Generate fresh pair of JWT for user
-		token, err := service.refreshtoken(gctx, userID)
+		token, err := service.refreshtoken(gctx, username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -180,24 +210,30 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Refresh successful, Add the jwt in request's cookie with httpOnly as true
-		gctx.SetCookie(
-			"access_token",                  // Cookie-Name
-			token["access_token"].(string),  // Cookie-Value
-			token["access_token_exp"].(int), // Cookie-Expires
-			"/api",                          // Cookie-Path (restricts to)
-			domain,                          // Cookie-domain (restricts to)
-			true,                            // Cookie-Secure
-			true,                            // Cookie-HttpOnly
-		)
-		gctx.SetCookie(
-			"refresh_token",                  // Cookie-Name
-			token["refresh_token"].(string),  // Cookie-Value
-			token["refresh_token_exp"].(int), // Cookie-Expires
-			"/api",                           // Cookie-Path (restricts to)
-			domain,                           // Cookie-domain (restricts to)
-			true,                             // Cookie-Secure
-			true,                             // Cookie-HttpOnly
-		)
+		access_token_cookie := &http.Cookie{
+			Name:     "access_token",
+			Value:    token["access_token"].(string),
+			Expires:  token["access_token_exp"].(time.Time),
+			MaxAge:   token["access_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, access_token_cookie)
+		refresh_token_cookie := &http.Cookie{
+			Name:     "refresh_token",
+			Value:    token["refresh_token"].(string),
+			Expires:  token["refresh_token_exp"].(time.Time),
+			MaxAge:   token["refresh_token_maxAge"].(int),
+			Domain:   domain,
+			Path:     "/api",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
 		gctx.Status(http.StatusOK)
 	}

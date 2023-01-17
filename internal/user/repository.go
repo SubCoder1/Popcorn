@@ -15,14 +15,14 @@ import (
 
 type Repository interface {
 	// Get returns the user with username if exists.
-	Get(context.Context, log.Logger, string) (entity.User, error)
+	Get(ctx context.Context, logger log.Logger, username string) (entity.User, error)
 	// Set adds the user with credentials saved in ue into the DB.
-	Set(context.Context, log.Logger, entity.User) (bool, error)
+	Set(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
 	// Exists returns a boolean depending on user's availability.
-	Exists(context.Context, log.Logger, string) (bool, error)
+	Exists(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// Increments the current number of Users to 1 and returns the new total.
 	// Util used during user registration.
-	IncrTotal(context.Context, log.Logger) (uint64, error)
+	IncrTotal(ctx context.Context, logger log.Logger) error
 }
 
 // repository struct of user Repository.
@@ -47,7 +47,7 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 		return user, errors.InternalServerError("")
 	} else if !available {
 		// User not available
-		return user, nil
+		return user, errors.NotFound("User not available")
 	}
 	if dberr := r.db.Client().HGetAll(ctx, "user:"+username).Scan(&user); dberr != nil {
 		// Error during interacting with DB
@@ -57,23 +57,27 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 	return user, nil
 }
 
-// Returns true if user successfully got added into the DB or error.
-func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User) (bool, error) {
-	// Checking if an user with username ue.username exists in the DB
-	// Can also be checked using Exists() before calling this method
-	available, dberr := r.Exists(ctx, logger, ue.Username)
-	if dberr != nil {
-		// Issues in Exists()
-		return false, dberr
-	} else if available {
-		return false, errors.BadRequest("User already exists")
+// Returns true if user successfully got added into the DB.
+func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error) {
+	if !userExistCheck {
+		// Checking if an user with username ue.username exists in the DB
+		available, dberr := r.Exists(ctx, logger, ue.Username)
+		if dberr != nil {
+			// Issues in Exists()
+			return false, dberr
+		} else if available {
+			return false, errors.BadRequest("User already exists")
+		}
 	}
 	// Add the user into the DB
 	key := "user:" + ue.Username
 	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
-		client.HSet(ctx, key, "id", ue.ID)
-		client.HSet(ctx, key, "username", ue.Username)
-		client.HSet(ctx, key, "password", ue.Password)
+		if !setProfPicOnly {
+			client.HSet(ctx, key, "username", ue.Username)
+			client.HSet(ctx, key, "full_name", ue.FullName)
+			client.HSet(ctx, key, "password", ue.Password)
+		}
+		client.HSet(ctx, key, "user_profile_pic", ue.ProfilePic)
 		return nil
 	}); dberr != nil {
 		// Error during interacting with DB
@@ -98,12 +102,12 @@ func (r repository) Exists(ctx context.Context, logger log.Logger, username stri
 }
 
 // Increments the total number of users in Popcorn.
-func (r repository) IncrTotal(ctx context.Context, logger log.Logger) (uint64, error) {
+func (r repository) IncrTotal(ctx context.Context, logger log.Logger) error {
 	newTotal, dberr := r.db.Client().IncrBy(ctx, "users", 1).Result()
 	if dberr != nil {
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.IncrBy in user.IncTotal")
-		return 0, errors.InternalServerError("")
+		return errors.InternalServerError("")
 	}
 	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Current total users in Popcorn - %d", newTotal))
-	return uint64(newTotal), nil
+	return nil
 }

@@ -22,13 +22,13 @@ import (
 // Service layer of internal package auth which encapsulates authentication logic of Popcorn.
 type Service interface {
 	// Registers an user in Popcorn with valid user credentials
-	register(context.Context, entity.User) (map[string]any, error)
+	register(ctx context.Context, user entity.User) (map[string]any, error)
 	// Logs-in an user into Popcorn with valid user credentials
-	login(context.Context, entity.UserLogin) (map[string]any, error)
+	login(ctx context.Context, user entity.User) (map[string]any, error)
 	// Logs-out an user from Popcorn
-	logout(context.Context) error
+	logout(ctx context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
-	refreshtoken(context.Context, string) (map[string]any, error)
+	refreshtoken(ctx context.Context, username string) (map[string]any, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -63,7 +63,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	available, dberr := s.userRepo.Exists(ctx, s.logger, ue.Username)
 	if dberr != nil {
 		// Error occured in Exists()
-		return token, errors.InternalServerError("")
+		return token, dberr
 	} else if available {
 		// User by the received username is already available in the platform
 		valerr := errors.New("username:username is already taken")
@@ -75,7 +75,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	dberr = s.userRepo.IncrTotal(ctx, s.logger)
 	if dberr != nil {
 		// Error occured in IncrTotal()
-		return token, errors.InternalServerError("")
+		return token, dberr
 	}
 
 	// Hash user password and save the credentials in the user object
@@ -85,8 +85,11 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	}
 	ue.Password = hasheduserpwd
 
+	// Set user's profile pic
+	ue.ProfilePic = ue.SelectProfilePic()
+
 	// Save the user in the DB
-	_, dberr = s.userRepo.Set(ctx, s.logger, ue)
+	_, dberr = s.userRepo.Set(ctx, s.logger, ue, true, false)
 	if dberr != nil {
 		// Error occured in Set()
 		return token, dberr
@@ -96,13 +99,13 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	userJWTData, jwterr := s.createToken(ctx, ue.Username)
 	if jwterr != nil {
 		// Error during generating user's jwtData
-		return token, errors.InternalServerError("")
+		return token, jwterr
 	}
 	// Save generated tokens with expiration into the DB
 	dberr = s.authRepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
 		// Error during saving user's JWT
-		return token, errors.InternalServerError("")
+		return token, dberr
 	}
 
 	token["access_token"] = userJWTData.AccessToken
@@ -114,7 +117,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	return token, nil
 }
 
-func (s service) login(ctx context.Context, request entity.UserLogin) (map[string]any, error) {
+func (s service) login(ctx context.Context, request entity.User) (map[string]any, error) {
 	token := make(map[string]any)
 
 	// Validate the received user data which is serialized to entity.User struct
@@ -142,6 +145,16 @@ func (s service) login(ctx context.Context, request entity.UserLogin) (map[strin
 	} else if !s.verifyPwDHash(ctx, request.Password, user.Password) {
 		// Invalid password
 		return token, errors.Unauthorized("Username or Password is incorrect")
+	}
+
+	// Set user's profile pic
+	user.ProfilePic = user.SelectProfilePic()
+
+	// Save the user in the DB
+	_, dberr = s.userRepo.Set(ctx, s.logger, user, true, true)
+	if dberr != nil {
+		// Error occured in Set()
+		return token, dberr
 	}
 
 	// Generate JWT for the newly created user
@@ -193,7 +206,7 @@ func (s service) refreshtoken(ctx context.Context, username string) (map[string]
 	dberr := s.authRepo.SetToken(ctx, s.logger, userJWTData)
 	if dberr != nil {
 		// Error during saving user's JWT
-		return token, errors.InternalServerError("")
+		return token, dberr
 	}
 	token["access_token"] = userJWTData.AccessToken
 	token["refresh_token"] = userJWTData.RefreshToken

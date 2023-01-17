@@ -14,11 +14,11 @@ import (
 
 type Repository interface {
 	// SetToken adds the user's AccessTokenUUID:userID and RefreshTokenUUID:userID in the DB.
-	SetToken(context.Context, log.Logger, *JWTdata) error
+	SetToken(ctx context.Context, logger log.Logger, jwtData *JWTdata) error
 	// TokenExists checks whether token:username exists in the DB.
-	TokenExists(context.Context, log.Logger, string, string) (bool, error)
+	TokenExists(ctx context.Context, logger log.Logger, tokenUUID string, username string) (bool, error)
 	// DelToken deletes TokenUUID from DB (if exists).
-	DelToken(context.Context, log.Logger, string) error
+	DelToken(ctx context.Context, logger log.Logger, tokenUUID string) error
 }
 
 // repository struct of user Repository.

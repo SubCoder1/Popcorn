@@ -12,7 +12,7 @@ import (
 // Service layer of internal package user which encapsulates UserModel logic of Popcorn.
 type Service interface {
 	// Fetches User Data based on User-ID
-	getuser(context.Context) (entity.User, error)
+	getuser(ctx context.Context) (entity.User, error)
 }
 
 // Object of this will be passed around from main to routers to API.

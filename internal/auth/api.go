@@ -85,14 +85,16 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 // login returns a handler which takes care of user login in Popcorn.
 func login(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		var user entity.UserLogin
+		var user entity.User
 
 		// Serialize received data into User struct
 		if binderr := gctx.BindJSON(&user); binderr != nil {
-			// Error occured during serialization
-			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
-			return
+			if user.Username == "" || user.Password == "" {
+				// Error occured during serialization
+				logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+				gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+				return
+			}
 		}
 
 		// Apply the service logic for User login in Popcorn

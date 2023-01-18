@@ -57,7 +57,7 @@ func (r repository) GetUser(ctx context.Context, logger log.Logger, username str
 	return user, nil
 }
 
-// Returns true if user successfully got added into the DB.
+// Returns true if user got successfully added into the DB.
 func (r repository) SetUser(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error) {
 	if !userExistCheck {
 		// Checking if an user with username ue.username exists in the DB

@@ -26,8 +26,7 @@ func (u User) SelectProfilePic() string {
 		"maniac.png",
 		"mummy.png",
 		"orc.png",
-		"pumpkin.png",
-		"skeleton.png",
+		"spider.png",
 		"witch.png",
 		"zombie.png",
 	}

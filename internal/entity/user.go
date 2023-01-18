@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Tags: json -> serialization, redis -> serialize from db output, valid -> validations
+// Saved in DB as user:<gang_name>
 type User struct {
 	Username   string `json:"username" redis:"username" valid:"required,type(string),printableascii,stringlength(5|20),nospace~username:No spaces allowed here"`
 	FullName   string `json:"full_name" redis:"full_name" valid:"type(string),stringlength(5|30),ascii,alphawithspace~full_name:Couldn't validate Full Name,optional"`

@@ -18,15 +18,23 @@ type User struct {
 // Randomly sets user's profile pic during login/register
 func (u User) SelectProfilePic() string {
 	profiles := []string{
-		"alien.png",
-		"death.png",
+		"cyclops.png",
+		"dead-cat.png",
+		"dead.png",
 		"devil.png",
+		"doll.png",
 		"dracula.png",
 		"frankenstein.png",
-		"maniac.png",
+		"ghost.png",
+		"grim-reaper.png",
+		"joker.png",
 		"mummy.png",
+		"murderer.png",
+		"ninja.png",
 		"orc.png",
-		"spider.png",
+		"pirate.png",
+		"prisoner.png",
+		"thief.png",
 		"witch.png",
 		"zombie.png",
 	}

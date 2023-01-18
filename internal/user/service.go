@@ -34,7 +34,7 @@ func (s service) getuser(ctx context.Context) (entity.User, error) {
 		// userID missing from context
 		return entity.User{}, errors.InternalServerError("")
 	}
-	user, dberr := s.userRepo.Get(ctx, s.logger, username.(string))
+	user, dberr := s.userRepo.GetUser(ctx, s.logger, username.(string))
 	if dberr != nil {
 		// Error occured in Get()
 		return entity.User{}, dberr

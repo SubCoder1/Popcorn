@@ -15,8 +15,8 @@ import (
 type Repository interface {
 	// SetToken adds the user's AccessTokenUUID:userID and RefreshTokenUUID:userID in the DB.
 	SetToken(ctx context.Context, logger log.Logger, jwtData *JWTdata) error
-	// TokenExists checks whether token:username exists in the DB.
-	TokenExists(ctx context.Context, logger log.Logger, tokenUUID string, username string) (bool, error)
+	// HasToken checks whether token:username exists in the DB.
+	HasToken(ctx context.Context, logger log.Logger, tokenUUID string, username string) (bool, error)
 	// DelToken deletes TokenUUID from DB (if exists).
 	DelToken(ctx context.Context, logger log.Logger, tokenUUID string) error
 }
@@ -55,7 +55,7 @@ func (r repository) SetToken(ctx context.Context, logger log.Logger, jwtData *JW
 
 // Returns boolean if tokenUUID:Username exists in the DB or not.
 // tokenUUID can be both AccessToken or RefreshToken.
-func (r repository) TokenExists(ctx context.Context, logger log.Logger, tokenUUID string, username string) (bool, error) {
+func (r repository) HasToken(ctx context.Context, logger log.Logger, tokenUUID string, username string) (bool, error) {
 	val, dberr := r.db.Client().Get(ctx, tokenUUID).Result()
 	if dberr != nil && dberr != redis.Nil {
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get in auth.TokenExists")

@@ -55,7 +55,7 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 			return
 		}
 		// Verify if TokenUUID:UserID is available in DB
-		valid, dberr := authRepo.TokenExists(gctx, logger, tokenUUID.(string), username)
+		valid, dberr := authRepo.HasToken(gctx, logger, tokenUUID.(string), username)
 		if dberr != nil {
 			// Error in TokenExists
 			gctx.AbortWithStatus(http.StatusInternalServerError)

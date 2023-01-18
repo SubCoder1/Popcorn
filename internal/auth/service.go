@@ -218,7 +218,7 @@ func (s service) refreshtoken(ctx context.Context, username string) (map[string]
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
-func (s service) validateUserData(ctx context.Context, ue interface{}) error {
+func (s service) validateUserData(ctx context.Context, ue entity.User) error {
 	_, valerr := govalidator.ValidateStruct(ue)
 	if valerr != nil {
 		valerr := valerr.(govalidator.Errors).Errors()

@@ -89,12 +89,10 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 
 		// Serialize received data into User struct
 		if binderr := gctx.BindJSON(&user); binderr != nil {
-			if user.Username == "" || user.Password == "" {
-				// Error occured during serialization
-				logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
-				gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
-				return
-			}
+			// Error occured during serialization
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
 		}
 
 		// Apply the service logic for User login in Popcorn

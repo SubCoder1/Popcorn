@@ -17,12 +17,12 @@ var domain string = os.Getenv("SRV_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
 func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
-	authgroup := router.Group("/api/auth")
+	authGroup := router.Group("/api/auth")
 	{
-		authgroup.POST("/register", register(service, logger))
-		authgroup.POST("/login", login(service, logger))
-		authgroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
-		authgroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
+		authGroup.POST("/register", register(service, logger))
+		authGroup.POST("/login", login(service, logger))
+		authGroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
+		authGroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
 	}
 }
 

@@ -60,7 +60,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	ue.FullName = strings.Trim(ue.FullName, " ")
 
 	// Check for user availability against user.Username
-	available, dberr := s.userRepo.Exists(ctx, s.logger, ue.Username)
+	available, dberr := s.userRepo.HasUser(ctx, s.logger, ue.Username)
 	if dberr != nil {
 		// Error occured in Exists()
 		return token, dberr
@@ -72,7 +72,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 
 	// users is a global key in db used to store current total number of users in Popcorn
 	// Increment users by 1 and use that value as userID
-	dberr = s.userRepo.IncrTotal(ctx, s.logger)
+	dberr = s.userRepo.IncrTotalUsers(ctx, s.logger)
 	if dberr != nil {
 		// Error occured in IncrTotal()
 		return token, dberr
@@ -89,7 +89,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	ue.ProfilePic = ue.SelectProfilePic()
 
 	// Save the user in the DB
-	_, dberr = s.userRepo.Set(ctx, s.logger, ue, true, false)
+	_, dberr = s.userRepo.SetUser(ctx, s.logger, ue, true, false)
 	if dberr != nil {
 		// Error occured in Set()
 		return token, dberr
@@ -128,7 +128,7 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 	}
 
 	// Check if user is available in Popcorn
-	available, dberr := s.userRepo.Exists(ctx, s.logger, request.Username)
+	available, dberr := s.userRepo.HasUser(ctx, s.logger, request.Username)
 	if dberr != nil {
 		// Error occured in Exists()
 		return token, dberr
@@ -138,7 +138,7 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 	}
 
 	// Fetch user's password hash from DB and validate against incoming password
-	user, dberr := s.userRepo.Get(ctx, s.logger, request.Username)
+	user, dberr := s.userRepo.GetUser(ctx, s.logger, request.Username)
 	if dberr != nil {
 		// Error occured in Get()
 		return token, dberr
@@ -151,7 +151,7 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 	user.ProfilePic = user.SelectProfilePic()
 
 	// Save the user in the DB
-	_, dberr = s.userRepo.Set(ctx, s.logger, user, true, true)
+	_, dberr = s.userRepo.SetUser(ctx, s.logger, user, true, true)
 	if dberr != nil {
 		// Error occured in Set()
 		return token, dberr

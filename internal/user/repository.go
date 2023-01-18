@@ -15,14 +15,14 @@ import (
 
 type Repository interface {
 	// Get returns the user with username if exists.
-	Get(ctx context.Context, logger log.Logger, username string) (entity.User, error)
+	GetUser(ctx context.Context, logger log.Logger, username string) (entity.User, error)
 	// Set adds the user with credentials saved in ue into the DB.
-	Set(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
-	// Exists returns a boolean depending on user's availability.
-	Exists(ctx context.Context, logger log.Logger, username string) (bool, error)
+	SetUser(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
+	// Has returns a boolean depending on user's availability.
+	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// Increments the current number of Users to 1 and returns the new total.
 	// Util used during user registration.
-	IncrTotal(ctx context.Context, logger log.Logger) error
+	IncrTotalUsers(ctx context.Context, logger log.Logger) error
 }
 
 // repository struct of user Repository.
@@ -38,7 +38,7 @@ func NewRepository(dbwrp *db.RedisDB) Repository {
 }
 
 // Returns the user data object if user with the given username is found in the DB.
-func (r repository) Get(ctx context.Context, logger log.Logger, username string) (entity.User, error) {
+func (r repository) GetUser(ctx context.Context, logger log.Logger, username string) (entity.User, error) {
 	user := entity.User{}
 	available, dberr := r.db.Client().HExists(ctx, "user:"+username, "username").Result()
 	if dberr != nil && dberr != redis.Nil {
@@ -58,10 +58,10 @@ func (r repository) Get(ctx context.Context, logger log.Logger, username string)
 }
 
 // Returns true if user successfully got added into the DB.
-func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error) {
+func (r repository) SetUser(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error) {
 	if !userExistCheck {
 		// Checking if an user with username ue.username exists in the DB
-		available, dberr := r.Exists(ctx, logger, ue.Username)
+		available, dberr := r.HasUser(ctx, logger, ue.Username)
 		if dberr != nil {
 			// Issues in Exists()
 			return false, dberr
@@ -88,7 +88,7 @@ func (r repository) Set(ctx context.Context, logger log.Logger, ue entity.User, 
 }
 
 // Returns true if user with the given username exists in Popcorn.
-func (r repository) Exists(ctx context.Context, logger log.Logger, username string) (bool, error) {
+func (r repository) HasUser(ctx context.Context, logger log.Logger, username string) (bool, error) {
 	available, dberr := r.db.Client().Exists(ctx, "user:"+username).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
@@ -102,7 +102,7 @@ func (r repository) Exists(ctx context.Context, logger log.Logger, username stri
 }
 
 // Increments the total number of users in Popcorn.
-func (r repository) IncrTotal(ctx context.Context, logger log.Logger) error {
+func (r repository) IncrTotalUsers(ctx context.Context, logger log.Logger) error {
 	newTotal, dberr := r.db.Client().IncrBy(ctx, "users", 1).Result()
 	if dberr != nil {
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.IncrBy in user.IncTotal")

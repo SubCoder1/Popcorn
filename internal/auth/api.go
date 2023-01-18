@@ -186,7 +186,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 // Incoming request should pass AuthMiddleware in order for this handler to work.
 func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		// Fetch UserID from context
+		// Fetch Username from context
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error

@@ -5,7 +5,6 @@ package validation
 import (
 	"context"
 	"regexp"
-	"strings"
 	"unicode"
 
 	"Popcorn/pkg/log"
@@ -18,7 +17,11 @@ import (
 func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 	// This custom validation checks if there's any spaces in the input string.
 	govalidator.TagMap["nospace"] = govalidator.Validator(func(str string) bool {
-		return !strings.Contains(str, " ")
+		return !govalidator.HasWhitespace(str)
+	})
+	// This custom validation checks if there's only spaces in the input string.
+	govalidator.TagMap["nospaceonly"] = govalidator.Validator(func(str string) bool {
+		return !govalidator.HasWhitespaceOnly(str)
 	})
 	// This custom validation checks for password strength.
 	// Only checks for 1 letter and 1 number, nothing too complicated.
@@ -37,8 +40,7 @@ func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 		}
 		return hasChar && hasNum
 	})
-	// This custom validation validates user full name.
-	// Only Alphabets with whitespace is allowed.
+	// This custom validation checks if the input string contains only alphabets (whitespace excluded)
 	govalidator.TagMap["alphawithspace"] = govalidator.Validator(func(full_name string) bool {
 		r := regexp.MustCompile("^[a-zA-Z ]*$")
 		return r.MatchString(full_name)

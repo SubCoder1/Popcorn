@@ -6,8 +6,8 @@ package entity
 type Gang struct {
 	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
 	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
-	PassKey        string `json:"gang_pass_key" redis:"pass_key" valid:"required,type(string),minstringlength(5)"`
-	Limit          uint   `json:"gang_member_limit" redis:"gang_limit" valid:"required,range(2|10)"`
+	PassKey        string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),minstringlength(5)"`
+	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	MembersListKey string `json:"gang_members_key,omitempty" valid:"-"`
 	Created        int64  `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
 }

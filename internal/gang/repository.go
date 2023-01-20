@@ -8,7 +8,6 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -79,8 +78,7 @@ func (r repository) SetGang(ctx context.Context, logger log.Logger, gang entity.
 
 // Returns true if gang member got successfully added into the DB.
 func (r repository) SetGangMembers(ctx context.Context, logger log.Logger, gangMemberKey string, member string) (bool, error) {
-	member_added, dberr := r.db.Client().SAdd(ctx, gangMemberKey, member).Result()
-	fmt.Println(member_added)
+	_, dberr := r.db.Client().SAdd(ctx, gangMemberKey, member).Result()
 	if dberr != nil {
 		// Issue in SAdd()
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SAdd() in gang.SetGangMembers")

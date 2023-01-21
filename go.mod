@@ -9,6 +9,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.3.0
 	github.com/rs/zerolog v1.28.0
+	github.com/xeonx/timeago v1.0.0-rc5
 	golang.org/x/crypto v0.4.0
 )
 

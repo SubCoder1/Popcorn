@@ -22,6 +22,7 @@ func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFun
 		authGroup.POST("/register", register(service, logger))
 		authGroup.POST("/login", login(service, logger))
 		authGroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
+		authGroup.GET("/validate_token", AuthWithAcc)
 		authGroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
 	}
 }

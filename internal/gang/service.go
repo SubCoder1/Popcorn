@@ -18,6 +18,8 @@ import (
 type Service interface {
 	// Creates a gang in Popcorn.
 	creategang(ctx context.Context, gang *entity.Gang) error
+	// Get user created or joined gang data in Popcorn.
+	getgang(ctx context.Context, username string) (interface{}, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -68,12 +70,39 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		return dberr
 	}
 
-	_, dberr = s.gangRepo.SetGang(ctx, s.logger, *gang, true)
+	_, dberr = s.gangRepo.SetGang(ctx, s.logger, gang, true)
 	if dberr != nil {
 		return dberr
 	}
 
 	return nil
+}
+
+func (s service) getgang(ctx context.Context, username string) (interface{}, error) {
+	// Get gang data from DB
+	data := []interface{}{}
+	// get gang details created by user (if any)(if any)
+	gangKey := "gang:" + username
+	gangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, username)
+	if dberr != nil {
+		// Error occured in GetGang()
+		return data, dberr
+	}
+	// Don't send empty gang data
+	if len(gangData) > 0 {
+		data = append(data, gangData)
+	}
+	// get gang details joined by user (if any)
+	gangJoinedData, dberr := s.gangRepo.GetJoinedGang(ctx, s.logger, username)
+	if dberr != nil {
+		// Error occured in GetJoinedGang()
+		return data, dberr
+	}
+	// Don't send empty gang data
+	if len(gangJoinedData) > 0 {
+		data = append(data, gangJoinedData)
+	}
+	return data, nil
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
@@ -97,9 +126,9 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 	return string(pwdbyte), nil
 }
 
-// Helper to verify incoming password with the actual hash of user's set password.
-// Helpful during login verification of an user in Popcorn.
-func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
-	return err == nil
-}
+// Helper to verify incoming passkey with the actual hash of gang's set passkey.
+// Helpful during gang join verification in Popcorn.
+// func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
+// 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
+// 	return err == nil
+// }

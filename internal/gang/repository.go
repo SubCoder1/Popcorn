@@ -8,17 +8,23 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/xeonx/timeago"
 )
 
 type Repository interface {
 	// HasGang returns a boolean depending on gang's availability.
 	HasGang(ctx context.Context, logger log.Logger, admin string) (bool, error)
 	// SetGang adds the gang data into the DB.
-	SetGang(ctx context.Context, logger log.Logger, gang entity.Gang, userExistCheck bool) (bool, error)
+	SetGang(ctx context.Context, logger log.Logger, gang *entity.Gang, userExistCheck bool) (bool, error)
 	// SetGangMembers adds the gang member into a gang.
 	SetGangMembers(ctx context.Context, logger log.Logger, gangMemberKey string, member string) (bool, error)
+	// GetGang fetches created gang data from DB.
+	GetGang(ctx context.Context, logger log.Logger, admin string, username string) (map[string]any, error)
+	// GetJoinedGang fetches joined gang data from DB.
+	GetJoinedGang(ctx context.Context, logger log.Logger, username string) (map[string]any, error)
 }
 
 // repository struct of gang Repository.
@@ -48,7 +54,7 @@ func (r repository) HasGang(ctx context.Context, logger log.Logger, admin string
 }
 
 // Returns true if gang got successfully added into the DB.
-func (r repository) SetGang(ctx context.Context, logger log.Logger, gang entity.Gang, gangExistCheck bool) (bool, error) {
+func (r repository) SetGang(ctx context.Context, logger log.Logger, gang *entity.Gang, gangExistCheck bool) (bool, error) {
 	if !gangExistCheck {
 		// Checking if an gang with admin gang.Admin exists in the DB
 		available, dberr := r.HasGang(ctx, logger, gang.Admin)
@@ -64,7 +70,7 @@ func (r repository) SetGang(ctx context.Context, logger log.Logger, gang entity.
 		client.HSet(ctx, key, "gang_admin", gang.Admin)
 		client.HSet(ctx, key, "gang_name", gang.Name)
 		client.HSet(ctx, key, "gang_pass_key", gang.PassKey)
-		client.HSet(ctx, key, "gang_limit", gang.Limit)
+		client.HSet(ctx, key, "gang_member_limit", gang.Limit)
 		client.HSet(ctx, key, "gang_members_key", gang.MembersListKey)
 		client.HSet(ctx, key, "gang_created", gang.Created)
 		return nil
@@ -85,4 +91,51 @@ func (r repository) SetGangMembers(ctx context.Context, logger log.Logger, gangM
 		return false, errors.InternalServerError("")
 	}
 	return true, nil
+}
+
+// Returns gang data if user has created a gang.
+func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey string, username string) (map[string]any, error) {
+	response := make(map[string]any)
+	var gang entity.Gang
+
+	if dberr := r.db.Client().HGetAll(ctx, gangKey).Scan(&gang); dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGetAll() in gang.GetGang")
+		return response, errors.InternalServerError("")
+	}
+	joined_count, dberr := r.db.Client().SCard(ctx, gang.MembersListKey).Result()
+	if dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.GetGang")
+		return response, errors.InternalServerError("")
+	}
+
+	if len(gang.Name) != 0 {
+		// Delete gang passkey hash
+		gang.PassKey = ""
+		// use timeago on gang_created
+		response["gang_created_timeago"] = timeago.English.Format(time.Unix(gang.Created, 0))
+		response["gang"] = gang
+		response["members"] = joined_count
+		response["isAdmin"] = username == gang.Admin
+	}
+
+	return response, nil
+}
+
+// Returns gang data if user has joined a gang.
+func (r repository) GetJoinedGang(ctx context.Context, logger log.Logger, username string) (map[string]any, error) {
+	response := make(map[string]any)
+
+	gangKey, dberr := r.db.Client().Get(ctx, "gang-joined:"+username).Result()
+	if dberr != nil && dberr != redis.Nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get() in gang.GetJoinedGang")
+		return response, errors.InternalServerError("")
+	} else if len(gangKey) == 0 {
+		// User has not joined any gang
+		return response, nil
+	}
+
+	return r.GetGang(ctx, logger, gangKey, username)
 }

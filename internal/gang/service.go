@@ -19,7 +19,11 @@ type Service interface {
 	// Creates a gang in Popcorn.
 	creategang(ctx context.Context, gang *entity.Gang) error
 	// Get user created or joined gang data in Popcorn.
-	getgang(ctx context.Context, username string) (interface{}, error)
+	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
+	// Join user into a gang
+	joingang(ctx context.Context, username string, gangKey entity.GangKey) error
+	// Search for a gang
+	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]map[string]any, uint64, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -43,7 +47,7 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		return valerr
 	}
 	// Check if user already has an unexpired gang created in Popcorn
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, gang.Admin)
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+gang.Admin)
 	if dberr != nil {
 		// Error occured in HasGang()
 		return dberr
@@ -64,13 +68,8 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	}
 	gang.PassKey = hashedgangpk
 
-	// Save gang details in the DB
-	_, dberr = s.gangRepo.SetGangMembers(ctx, s.logger, gang.MembersListKey, gang.Admin)
-	if dberr != nil {
-		return dberr
-	}
-
-	_, dberr = s.gangRepo.SetGang(ctx, s.logger, gang, true)
+	// Save gang data in DB
+	_, dberr = s.gangRepo.SetGang(ctx, s.logger, gang)
 	if dberr != nil {
 		return dberr
 	}
@@ -78,35 +77,66 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	return nil
 }
 
-func (s service) getgang(ctx context.Context, username string) (interface{}, error) {
+func (s service) getgang(ctx context.Context, username string) (interface{}, bool, bool, error) {
 	// Get gang data from DB
 	data := []interface{}{}
+	canCreate := false
+	canJoin := false
 	// get gang details created by user (if any)(if any)
 	gangKey := "gang:" + username
-	gangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, username)
+	gangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, username, false)
 	if dberr != nil {
 		// Error occured in GetGang()
-		return data, dberr
+		return data, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
 	if len(gangData) > 0 {
 		data = append(data, gangData)
+	} else {
+		// User can create a gang
+		canCreate = true
 	}
 	// get gang details joined by user (if any)
 	gangJoinedData, dberr := s.gangRepo.GetJoinedGang(ctx, s.logger, username)
 	if dberr != nil {
 		// Error occured in GetJoinedGang()
-		return data, dberr
+		return data, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
 	if len(gangJoinedData) > 0 {
 		data = append(data, gangJoinedData)
+	} else {
+		// User can join a gang
+		canJoin = true
 	}
-	return data, nil
+	return data, canCreate, canJoin, nil
+}
+
+func (s service) joingang(ctx context.Context, username string, gangKey entity.GangKey) error {
+	valerr := s.validateGangData(ctx, gangKey)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	dberr := s.gangRepo.JoinGang(ctx, s.logger, gangKey, username)
+	if dberr != nil {
+		// Error occured in JoinGang()
+		return dberr
+	}
+	return nil
+}
+
+func (s service) searchgang(ctx context.Context, query entity.GangSearch, username string) ([]map[string]any, uint64, error) {
+	valerr := s.validateGangData(ctx, query)
+	if valerr != nil {
+		// Error occured during validation
+		return []map[string]any{}, 0, valerr
+	}
+	return s.gangRepo.SearchGang(ctx, s.logger, query, username)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
-func (s service) validateGangData(ctx context.Context, gang *entity.Gang) error {
+func (s service) validateGangData(ctx context.Context, gang interface{}) error {
 	_, valerr := govalidator.ValidateStruct(gang)
 	if valerr != nil {
 		valerr := valerr.(govalidator.Errors).Errors()

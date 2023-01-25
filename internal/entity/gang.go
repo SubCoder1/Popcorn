@@ -6,7 +6,7 @@ package entity
 // Saved in DB as gang:<this.Admin>.
 type Gang struct {
 	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
-	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
+	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),matches([^a-zA-Z0-9_. ])~gang_name:Invalid Gang Name"`
 	PassKey        string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),minstringlength(5)"`
 	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key" valid:"-"`
@@ -32,14 +32,14 @@ type GangMembersList struct {
 
 // Used to bind and validate join_gang request
 type GangKey struct {
-	Admin string `json:"gang_admin,omitempty" valid:"required,type(string),printableascii,stringlength(5|20),nospace~username:No spaces allowed here"`
+	Admin string `json:"gang_admin,omitempty" valid:"required,type(string),printableascii,stringlength(5|20),nospace~admin:No spaces allowed here"`
 	Name  string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
 	Key   string `json:"gang_key,omitempty" valid:"-"`
 }
 
 // Used to bind and validate search_gang request
 type GangSearch struct {
-	Name   string `valid:"required,type(string),printableascii,stringlength(1|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
+	Name   string `valid:"required,type(string),printableascii,stringlength(1|20),matches([^a-zA-Z0-9_. ])~Name:Invalid Gang Name"`
 	Cursor int    `valid:"-"`
 }
 

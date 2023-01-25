@@ -159,7 +159,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 // searchGang returns a handler which takes care of gang search in Popcorn.
 func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		// Fetch username from context which will be used in getgang service
+		// Fetch username from context which will be used in searchgang service
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error

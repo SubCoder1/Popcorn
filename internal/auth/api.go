@@ -19,10 +19,10 @@ var domain string = os.Getenv("SRV_ADDR")
 func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
 	authGroup := router.Group("/api/auth")
 	{
+		authGroup.GET("/validate_token", AuthWithAcc)
 		authGroup.POST("/register", register(service, logger))
 		authGroup.POST("/login", login(service, logger))
 		authGroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
-		authGroup.GET("/validate_token", AuthWithAcc)
 		authGroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
 	}
 }

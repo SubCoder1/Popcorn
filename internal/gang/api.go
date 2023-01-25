@@ -16,11 +16,11 @@ import (
 func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
 	gangGroup := router.Group("/api/gang")
 	{
-		gangGroup.POST("/create", AuthWithAcc, create_gang(service, logger))
+		gangGroup.GET("/search", AuthWithAcc, search_gang(service, logger))
 		gangGroup.GET("/get", AuthWithAcc, get_gang(service, logger))
 		gangGroup.GET("/get/invites", AuthWithAcc, get_gang_invites(service, logger))
 		gangGroup.POST("/join", AuthWithAcc, join_gang(service, logger))
-		gangGroup.GET("/search", AuthWithAcc, search_gang(service, logger))
+		gangGroup.POST("/create", AuthWithAcc, create_gang(service, logger))
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"Popcorn/pkg/middlewares"
-	"Popcorn/pkg/validation"
 	"context"
 	"fmt"
 	"net/http"
@@ -64,7 +63,8 @@ func main() {
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
-	validation.RegisterCustomValidations(ctx, logger)
+	user.RegisterCustomValidations(ctx, logger)
+	gang.RegisterCustomValidations(ctx, logger)
 
 	// Fetching server address and port from the environment
 	srvaddr, srvport := os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")

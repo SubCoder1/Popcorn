@@ -189,6 +189,7 @@ func (r repository) GetJoinedGang(ctx context.Context, logger log.Logger, userna
 	return r.GetGang(ctx, logger, gangKey, username, true)
 }
 
+// Returns true if an user is able to join a gang, decided by whether he/she has already joined one.
 func (r repository) CanJoinGang(ctx context.Context, logger log.Logger, username string) (bool, error) {
 	// Check if gang-joined:<username> is found in the DB
 	// Which means user is still in a gang, cannot join without leaving the one he/she's still in
@@ -261,7 +262,7 @@ func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity
 	searchBy := fmt.Sprintf("gang:*:%s*", query)
 	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "gang:index", uint64(gs.Cursor), searchBy, 10).Result()
 
-	if dberr != nil {
+	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in gang.SearchGang")
 		return []entity.GangResponse{}, uint64(0), errors.InternalServerError("")
@@ -310,8 +311,8 @@ func (r repository) delGangIndex(ctx context.Context, logger log.Logger, index s
 }
 
 // Helper to extract gangKey from gang index
-func extDataFromGangIndex(ctx context.Context, logger log.Logger, index string) (string, string, error) {
-	slice := strings.Split(index, ":")
+func extDataFromGangIndex(ctx context.Context, logger log.Logger, gangIndex string) (string, string, error) {
+	slice := strings.Split(gangIndex, ":")
 	if len(slice) != 3 {
 		// Issues in index
 		logger.WithCtx(ctx).Error().Msg("Error occured during extraction of gangKey from index, improper : used in index?")

@@ -16,16 +16,16 @@ import (
 func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
 	gangGroup := router.Group("/api/gang")
 	{
-		gangGroup.GET("/search", AuthWithAcc, search_gang(service, logger))
-		gangGroup.GET("/get", AuthWithAcc, get_gang(service, logger))
-		gangGroup.GET("/get/invites", AuthWithAcc, get_gang_invites(service, logger))
-		gangGroup.POST("/join", AuthWithAcc, join_gang(service, logger))
-		gangGroup.POST("/create", AuthWithAcc, create_gang(service, logger))
+		gangGroup.GET("/search", AuthWithAcc, searchGang(service, logger))
+		gangGroup.GET("/get", AuthWithAcc, getGang(service, logger))
+		gangGroup.GET("/get/invites", AuthWithAcc, getGangInvites(service, logger))
+		gangGroup.POST("/join", AuthWithAcc, joinGang(service, logger))
+		gangGroup.POST("/create", AuthWithAcc, createGang(service, logger))
 	}
 }
 
-// create_gang returns a handler which takes care of creating gangs in Popcorn.
-func create_gang(service Service, logger log.Logger) gin.HandlerFunc {
+// createGang returns a handler which takes care of creating gangs in Popcorn.
+func createGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		var gang entity.Gang
 
@@ -63,8 +63,8 @@ func create_gang(service Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
-// get_gang returns a handler which takes care of getting user created or joined gangs in Popcorn.
-func get_gang(service Service, logger log.Logger) gin.HandlerFunc {
+// getGang returns a handler which takes care of getting user created or joined gangs in Popcorn.
+func getGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgang service
 		username, ok := gctx.Value("Username").(string)
@@ -93,7 +93,8 @@ func get_gang(service Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
-func get_gang_invites(service Service, logger log.Logger) gin.HandlerFunc {
+// getGangInvites returns a handler which takes care of getting received gang invites in Popcorn.
+func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getganginvites service
 		username, ok := gctx.Value("Username").(string)
@@ -121,8 +122,8 @@ func get_gang_invites(service Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
-// join_gang returns a handler which takes care of joining a gang in Popcorn.
-func join_gang(service Service, logger log.Logger) gin.HandlerFunc {
+// joinGang returns a handler which takes care of joining a gang in Popcorn.
+func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		username, ok := gctx.Value("Username").(string)
@@ -155,8 +156,8 @@ func join_gang(service Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
-// search_gang returns a handler which takes care of gang search in Popcorn.
-func search_gang(service Service, logger log.Logger) gin.HandlerFunc {
+// searchGang returns a handler which takes care of gang search in Popcorn.
+func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgang service
 		username, ok := gctx.Value("Username").(string)

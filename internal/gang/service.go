@@ -19,11 +19,13 @@ type Service interface {
 	// Creates a gang in Popcorn.
 	creategang(ctx context.Context, gang *entity.Gang) error
 	// Get user created or joined gang data in Popcorn.
-	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
+	getgang(ctx context.Context, username string) ([]entity.GangResponse, bool, bool, error)
+	// Get gang invites received by user in Popcorn.
+	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
 	// Join user into a gang
 	joingang(ctx context.Context, username string, gangKey entity.GangKey) error
 	// Search for a gang
-	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]map[string]any, uint64, error)
+	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -77,9 +79,9 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	return nil
 }
 
-func (s service) getgang(ctx context.Context, username string) (interface{}, bool, bool, error) {
+func (s service) getgang(ctx context.Context, username string) ([]entity.GangResponse, bool, bool, error) {
 	// Get gang data from DB
-	data := []interface{}{}
+	data := []entity.GangResponse{}
 	canCreate := false
 	canJoin := false
 	// get gang details created by user (if any)(if any)
@@ -90,7 +92,7 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		return data, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
-	if len(gangData) > 0 {
+	if (gangData != entity.GangResponse{}) {
 		data = append(data, gangData)
 	} else {
 		// User can create a gang
@@ -103,13 +105,17 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		return data, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
-	if len(gangJoinedData) > 0 {
+	if (gangJoinedData != entity.GangResponse{}) {
 		data = append(data, gangJoinedData)
 	} else {
 		// User can join a gang
 		canJoin = true
 	}
 	return data, canCreate, canJoin, nil
+}
+
+func (s service) getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error) {
+	return s.gangRepo.GetGangInvites(ctx, s.logger, username)
 }
 
 func (s service) joingang(ctx context.Context, username string, gangKey entity.GangKey) error {
@@ -126,11 +132,11 @@ func (s service) joingang(ctx context.Context, username string, gangKey entity.G
 	return nil
 }
 
-func (s service) searchgang(ctx context.Context, query entity.GangSearch, username string) ([]map[string]any, uint64, error) {
+func (s service) searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error) {
 	valerr := s.validateGangData(ctx, query)
 	if valerr != nil {
 		// Error occured during validation
-		return []map[string]any{}, 0, valerr
+		return []entity.GangResponse{}, 0, valerr
 	}
 	return s.gangRepo.SearchGang(ctx, s.logger, query, username)
 }

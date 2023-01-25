@@ -2,7 +2,8 @@
 
 package entity
 
-// Saved in DB as gang:<this.Admin>
+// Information structure of Gangs in Popcorn.
+// Saved in DB as gang:<this.Admin>.
 type Gang struct {
 	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
 	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
@@ -10,6 +11,18 @@ type Gang struct {
 	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key" valid:"-"`
 	Created        int64  `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
+}
+
+// Response structure of Gangs in Popcorn, typically used in get methods
+// Used to send gang data to client
+type GangResponse struct {
+	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin"`
+	Name           string `json:"gang_name" redis:"gang_name"`
+	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit"`
+	IsAdmin        bool   `json:"is_admin"`
+	Count          int    `json:"gang_members_count"`
+	Created        int64  `json:"gang_created,omitempty" redis:"gang_created"`
+	CreatedTimeAgo string `json:"gang_created_timeago"`
 }
 
 // Saved in DB as gang-members:<members>
@@ -28,4 +41,14 @@ type GangKey struct {
 type GangSearch struct {
 	Name   string `valid:"required,type(string),printableascii,stringlength(1|20),nospaceonly~gang_name:Gang Name cannot contain only spaces"`
 	Cursor int    `valid:"-"`
+}
+
+// Information structure of Gang invitation in Popcorn.
+// Gang-invites are stored in user's gang-invites:<username> DB set.
+// Invite value is <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
+// Created_UNIX_Timestamp is converted into GangInvite.CreatedTimeAgo
+type GangInvite struct {
+	Admin          string `json:"gang_admin"`
+	Name           string `json:"gang_name"`
+	CreatedTimeAgo string `json:"invite_sent_timeago"`
 }

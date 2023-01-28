@@ -161,7 +161,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in joinGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		var gangKey entity.GangKey
+		var gangKey entity.GangJoin
 		// Serialize received data into GangKey struct
 		if binderr := gctx.BindJSON(&gangKey); binderr != nil {
 			// Error occured during serialization

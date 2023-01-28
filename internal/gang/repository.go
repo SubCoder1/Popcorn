@@ -27,7 +27,7 @@ type Repository interface {
 	// GetGang fetches created gang data from DB.
 	GetGang(ctx context.Context, logger log.Logger, admin string, username string, existCheck bool) (entity.GangResponse, error)
 	// GetGangPassKey fetches PassKey Hash for a gang, should be used before JoinGang.
-	GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangKey) (string, error)
+	GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangJoin) (string, error)
 	// GetJoinedGang fetches joined gang data from DB.
 	GetJoinedGang(ctx context.Context, logger log.Logger, username string) (entity.GangResponse, error)
 	// GetGangMembers fetches joined gang members list from DB.
@@ -37,7 +37,7 @@ type Repository interface {
 	// DelGangInvite deletes rejected or expired gang invites
 	DelGangInvite(ctx context.Context, logger log.Logger, username string, inviteIndex string) error
 	// JoinGang adds user to a gang.
-	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangKey, username string) error
+	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error
 	// SearchGang returns paginated gang data depending on the query.
 	SearchGang(ctx context.Context, logger log.Logger, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 }
@@ -158,7 +158,7 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 }
 
 // Returns gang passkey, used to validate incoming passkey before JoinGang is called
-func (r repository) GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangKey) (string, error) {
+func (r repository) GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangJoin) (string, error) {
 	// Checking if an gang with gangKey exists in the DB
 	available, dberr := r.HasGang(ctx, logger, gangKey.Key)
 	if dberr != nil {
@@ -243,7 +243,7 @@ func (r repository) CanJoinGang(ctx context.Context, logger log.Logger, username
 }
 
 // Returns nil if user got successfully added to the gang.
-func (r repository) JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangKey, username string) error {
+func (r repository) JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error {
 	// Checking if an gang with gangKey exists in the DB
 	available, dberr := r.HasGang(ctx, logger, gangKey.Key)
 	if dberr != nil {

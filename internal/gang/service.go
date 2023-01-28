@@ -25,7 +25,7 @@ type Service interface {
 	// Get list of gang members of user created gang in Popcorn.
 	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
-	joingang(ctx context.Context, username string, gangKey entity.GangKey) error
+	joingang(ctx context.Context, username string, gangKey entity.GangJoin) error
 	// Search for a gang
 	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 }
@@ -138,7 +138,7 @@ func (s service) getgangmembers(ctx context.Context, username string) ([]entity.
 	return members, nil
 }
 
-func (s service) joingang(ctx context.Context, username string, gangKey entity.GangKey) error {
+func (s service) joingang(ctx context.Context, username string, gangKey entity.GangJoin) error {
 	valerr := s.validateGangData(ctx, gangKey)
 	if valerr != nil {
 		// Error occured during validation

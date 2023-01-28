@@ -26,8 +26,12 @@ type Repository interface {
 	SetGangMembers(ctx context.Context, logger log.Logger, gangMemberKey string, member string) (bool, error)
 	// GetGang fetches created gang data from DB.
 	GetGang(ctx context.Context, logger log.Logger, admin string, username string, existCheck bool) (entity.GangResponse, error)
+	// GetGangPassKey fetches PassKey Hash for a gang, should be used before JoinGang.
+	GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangKey) (string, error)
 	// GetJoinedGang fetches joined gang data from DB.
 	GetJoinedGang(ctx context.Context, logger log.Logger, username string) (entity.GangResponse, error)
+	// GetGangMembers fetches joined gang members list from DB.
+	GetGangMembers(ctx context.Context, logger log.Logger, username string) ([]string, error)
 	// GetGangInvites returns a list of invites received by user in Popcorn.
 	GetGangInvites(ctx context.Context, logger log.Logger, username string) ([]entity.GangInvite, error)
 	// DelGangInvite deletes rejected or expired gang invites
@@ -153,6 +157,28 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 	return gangResp, nil
 }
 
+// Returns gang passkey, used to validate incoming passkey before JoinGang is called
+func (r repository) GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangKey) (string, error) {
+	// Checking if an gang with gangKey exists in the DB
+	available, dberr := r.HasGang(ctx, logger, gangKey.Key)
+	if dberr != nil {
+		// Issues in HasGang()
+		return "", dberr
+	} else if !available {
+		// Delete index as this request was made through search or invite
+		go r.delGangIndex(ctx, logger, gangKey.Key+":"+gangKey.Name)
+		return "", errors.BadRequest("Gang doesn't exist")
+	}
+	// Fetch Gang PassKey hash
+	passKey, dberr := r.db.Client().HGet(ctx, gangKey.Key, "gang_pass_key").Result()
+	if dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.GetGangPassKey")
+		return "", errors.InternalServerError("")
+	}
+	return passKey, nil
+}
+
 // Returns a list of GangInvite objects consisting invite metadata.
 func (r repository) GetGangInvites(ctx context.Context, logger log.Logger, username string) ([]entity.GangInvite, error) {
 	inviteKeys, dberr := r.db.Client().SMembers(ctx, "gang-invites:"+username).Result()
@@ -163,7 +189,7 @@ func (r repository) GetGangInvites(ctx context.Context, logger log.Logger, usern
 	}
 	invites := []entity.GangInvite{}
 	for _, inviteKey := range inviteKeys {
-		// invite is of format <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
+		// invite is of format <GangInvite.Admin>:<GangInvite.GangName>:<Created_UNIX_Timestamp>
 		gangInvite, err := extDataFromInviteIndex(ctx, logger, inviteKey)
 		if err != nil {
 			// Issues in extractGangInviteData()
@@ -187,6 +213,20 @@ func (r repository) GetJoinedGang(ctx context.Context, logger log.Logger, userna
 	}
 
 	return r.GetGang(ctx, logger, gangKey, username, true)
+}
+
+// Returns a list of joined gang members.
+func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, username string) ([]string, error) {
+	membersList, dberr := r.db.Client().SMembers(ctx, "gang-members:"+username).Result()
+	if dberr != nil && dberr != redis.Nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SMembers() in gang.GetGangMembers")
+		return []string{}, errors.InternalServerError("")
+	} else if dberr == redis.Nil {
+		// GangMembersList missing
+		return []string{}, errors.BadRequest("")
+	}
+	return membersList, nil
 }
 
 // Returns true if an user is able to join a gang, decided by whether he/she has already joined one.
@@ -224,11 +264,11 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, gangKey ent
 		return errors.BadRequest("Already in a gang")
 	}
 	// Add gang-joined:<username> to gangKey
-	// set gang-joined:<member> to gang:<gang_admin>
-	_, dberr = r.db.Client().Set(ctx, "gang-joined:"+username, gangKey, 0).Result()
+	// Set gang-joined:<member> to gang:<gang_admin>
+	_, dberr = r.db.Client().Set(ctx, "gang-joined:"+username, "gang:"+gangKey.Admin, 0).Result()
 	if dberr != nil {
 		// Isses in Set()
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Set() in gang.SetGangMembers")
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Set() in gang.JoinGang")
 		return errors.InternalServerError("")
 	}
 	// Fetch memberListKey from gang
@@ -253,8 +293,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, gangKey ent
 	return nil
 }
 
-// Returns paginated gang details of all the gangs matched by query in DB.
-// query can either be by admin or gangName
+// Returns paginated gang details of all the gangs matched by query (gang_name) in DB.
 func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity.GangSearch, username string) ([]entity.GangResponse, uint64, error) {
 	searchResult := []entity.GangResponse{}
 	// try searching gang index gang:*:query:index, assuming query as gang name

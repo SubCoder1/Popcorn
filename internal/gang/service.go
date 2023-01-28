@@ -22,6 +22,8 @@ type Service interface {
 	getgang(ctx context.Context, username string) ([]entity.GangResponse, bool, bool, error)
 	// Get gang invites received by user in Popcorn.
 	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
+	// Get list of gang members of user created gang in Popcorn.
+	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
 	joingang(ctx context.Context, username string, gangKey entity.GangKey) error
 	// Search for a gang
@@ -118,13 +120,40 @@ func (s service) getganginvites(ctx context.Context, username string) ([]entity.
 	return s.gangRepo.GetGangInvites(ctx, s.logger, username)
 }
 
+func (s service) getgangmembers(ctx context.Context, username string) ([]entity.User, error) {
+	membersList, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, username)
+	if dberr != nil {
+		// Error occured in GetGangMembers()
+		return []entity.User{}, dberr
+	}
+	members := []entity.User{}
+	for _, member := range membersList {
+		user, dberr := s.userRepo.GetUser(ctx, s.logger, member)
+		if dberr != nil {
+			// Error occured in GetUser()
+			return members, dberr
+		}
+		members = append(members, user)
+	}
+	return members, nil
+}
+
 func (s service) joingang(ctx context.Context, username string, gangKey entity.GangKey) error {
 	valerr := s.validateGangData(ctx, gangKey)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
 	}
-	dberr := s.gangRepo.JoinGang(ctx, s.logger, gangKey, username)
+	// Fetch passkey hash for the gang and match with incoming one
+	gangPassKeyHash, dberr := s.gangRepo.GetGangPassKey(ctx, s.logger, gangKey)
+	if dberr != nil {
+		// Error occured in GetGangPassKey()
+		return dberr
+	} else if !s.verifyPassKeyHash(ctx, gangKey.PassKey, gangPassKeyHash) {
+		// Passkey didn't match
+		return errors.Unauthorized("PassKey didn't match")
+	}
+	dberr = s.gangRepo.JoinGang(ctx, s.logger, gangKey, username)
 	if dberr != nil {
 		// Error occured in JoinGang()
 		return dberr
@@ -164,7 +193,7 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 
 // Helper to verify incoming passkey with the actual hash of gang's set passkey.
 // Helpful during gang join verification in Popcorn.
-// func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
-// 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
-// 	return err == nil
-// }
+func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
+	return err == nil
+}

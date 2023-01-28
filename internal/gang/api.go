@@ -14,13 +14,15 @@ import (
 
 // Registers all of the REST API handlers related to internal package gang onto the gin server.
 func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
-	gangGroup := router.Group("/api/gang")
+	gangGroup := router.Group("/api/gang", AuthWithAcc)
 	{
-		gangGroup.GET("/search", AuthWithAcc, searchGang(service, logger))
-		gangGroup.GET("/get", AuthWithAcc, getGang(service, logger))
-		gangGroup.GET("/get/invites", AuthWithAcc, getGangInvites(service, logger))
-		gangGroup.POST("/join", AuthWithAcc, joinGang(service, logger))
-		gangGroup.POST("/create", AuthWithAcc, createGang(service, logger))
+		gangGroup.GET("/search", searchGang(service, logger))
+		gangGroup.GET("/get", getGang(service, logger))
+		gangGroup.GET("/get/invites", getGangInvites(service, logger))
+		gangGroup.GET("/get/gang_members", getGangMembers(service, logger))
+		gangGroup.POST("/join", joinGang(service, logger))
+		gangGroup.POST("/create", createGang(service, logger))
+		// gangGroup.POST("/send_invite", sendInvite(service, logger))
 	}
 }
 
@@ -42,7 +44,7 @@ func createGang(service Service, logger log.Logger) gin.HandlerFunc {
 		gang.Admin, ok = gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in create_gang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
@@ -70,7 +72,7 @@ func getGang(service Service, logger log.Logger) gin.HandlerFunc {
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		data, canCreate, canJoin, err := service.getgang(gctx, username)
@@ -100,7 +102,7 @@ func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang_invites")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangInvites")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		invites, err := service.getganginvites(gctx, username)
@@ -122,6 +124,33 @@ func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
+// getGangMembers returns a handler which takes care of getting a list of all the gang members in Popcorn.
+func getGangMembers(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used in getgangmembers service
+		username, ok := gctx.Value("Username").(string)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangMembers")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		membersList, err := service.getgangmembers(gctx, username)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.JSON(http.StatusOK, gin.H{
+			"members": membersList,
+		})
+	}
+}
+
 // joinGang returns a handler which takes care of joining a gang in Popcorn.
 func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
@@ -129,7 +158,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in joinGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var gangKey entity.GangKey
@@ -196,3 +225,10 @@ func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 		})
 	}
 }
+
+// sendInvite returns a handler which takes care of sending gang invite in Popcorn.
+// func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
+// 	return func(gctx *gin.Context) {
+
+// 	}
+// }

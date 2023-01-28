@@ -14,15 +14,17 @@ import (
 )
 
 type Repository interface {
-	// Get returns the user with username if exists.
+	// GetUser returns the user with username if exists.
 	GetUser(ctx context.Context, logger log.Logger, username string) (entity.User, error)
-	// Set adds the user with credentials saved in ue into the DB.
+	// SetUser adds the user with credentials saved in ue into the DB.
 	SetUser(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
-	// Has returns a boolean depending on user's availability.
+	// HasUser returns a boolean depending on user's availability.
 	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// Increments the current number of Users to 1 and returns the new total.
 	// Util used during user registration.
 	IncrTotalUsers(ctx context.Context, logger log.Logger) error
+	// SearchGang returns paginated gang data depending on the query.
+	SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch, username string) ([]entity.User, uint64, error)
 }
 
 // repository struct of user Repository.
@@ -84,6 +86,13 @@ func (r repository) SetUser(ctx context.Context, logger log.Logger, ue entity.Us
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in user.Set")
 		return false, errors.InternalServerError("")
 	}
+	// Add user to user:index for faster searches
+	_, dberr := r.db.Client().SAdd(ctx, "user:index", ue.Username).Result()
+	if dberr != nil {
+		// Issues in SAdd()
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during setting user index")
+		return false, errors.InternalServerError("")
+	}
 	return true, nil
 }
 
@@ -110,4 +119,27 @@ func (r repository) IncrTotalUsers(ctx context.Context, logger log.Logger) error
 	}
 	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Current total users in Popcorn - %d", newTotal))
 	return nil
+}
+
+// Returns user data matching incoming query in DB.
+func (r repository) SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch, username string) ([]entity.User, uint64, error) {
+	searchBy := query.Username + "*"
+	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "user:index", uint64(query.Cursor), searchBy, 10).Result()
+	if dberr != nil && dberr != redis.Nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in user.SearchUser")
+		return []entity.User{}, uint64(0), errors.InternalServerError("")
+	}
+	searchResult := []entity.User{}
+	for _, index := range resultSet {
+		userData, err := r.GetUser(ctx, logger, index)
+		if err != nil {
+			// Issues in GetUser()
+			return searchResult, uint64(0), err
+		}
+		// Hide password
+		userData.Password = ""
+		searchResult = append(searchResult, userData)
+	}
+	return searchResult, newCursor, nil
 }

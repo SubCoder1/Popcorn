@@ -6,6 +6,7 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -22,7 +23,8 @@ func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFu
 		gangGroup.GET("/get/gang_members", getGangMembers(service, logger))
 		gangGroup.POST("/join", joinGang(service, logger))
 		gangGroup.POST("/create", createGang(service, logger))
-		// gangGroup.POST("/send_invite", sendInvite(service, logger))
+		gangGroup.POST("/send_invite", sendInvite(service, logger))
+		gangGroup.POST("/accept_invite", acceptInvite(service, logger))
 	}
 }
 
@@ -227,8 +229,70 @@ func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // sendInvite returns a handler which takes care of sending gang invite in Popcorn.
-// func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
-// 	return func(gctx *gin.Context) {
+func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the sendinvite service
+		username, ok := gctx.Value("Username").(string)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendInvite")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		var gangInvite entity.GangInvite
+		// Serialize received data into GangInvite struct
+		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+			// Error occured during serialization
+			fmt.Println(binderr)
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+		// user should be the admin here
+		gangInvite.Admin = username
+		err := service.sendganginvite(gctx, gangInvite)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
 
-// 	}
-// }
+// acceptInvite returns a handler which takes care of accepting gang invite in Popcorn.
+func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the sendinvite service
+		username, ok := gctx.Value("Username").(string)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendInvite")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		var gangInvite entity.GangInvite
+		// Serialize received data into GangInvite struct
+		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+			// Error occured during serialization
+			fmt.Println(binderr)
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+		gangInvite.For = username
+		err := service.acceptganginvite(gctx, gangInvite)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}

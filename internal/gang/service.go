@@ -28,6 +28,10 @@ type Service interface {
 	joingang(ctx context.Context, username string, gangKey entity.GangJoin) error
 	// Search for a gang
 	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
+	// Send gang invite to an user
+	sendganginvite(ctx context.Context, invite entity.GangInvite) error
+	// Accept gang invite for an user
+	acceptganginvite(ctx context.Context, invite entity.GangInvite) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -51,7 +55,7 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		return valerr
 	}
 	// Check if user already has an unexpired gang created in Popcorn
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+gang.Admin)
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+gang.Admin, "")
 	if dberr != nil {
 		// Error occured in HasGang()
 		return dberr
@@ -168,6 +172,32 @@ func (s service) searchgang(ctx context.Context, query entity.GangSearch, userna
 		return []entity.GangResponse{}, 0, valerr
 	}
 	return s.gangRepo.SearchGang(ctx, s.logger, query, username)
+}
+
+func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) error {
+	valerr := s.validateGangData(ctx, invite)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	// check if self invite is getting sent
+	if invite.Admin == invite.For {
+		return errors.BadRequest("Invalid Gang Invite")
+	}
+	return s.gangRepo.SendGangInvite(ctx, s.logger, invite)
+}
+
+func (s service) acceptganginvite(ctx context.Context, invite entity.GangInvite) error {
+	valerr := s.validateGangData(ctx, invite)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	// check if self invite is getting sent
+	if invite.Admin == invite.For {
+		return errors.BadRequest("Invalid Gang Invite")
+	}
+	return s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

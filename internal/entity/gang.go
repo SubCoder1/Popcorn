@@ -46,10 +46,11 @@ type GangSearch struct {
 
 // Information structure of Gang invitation in Popcorn.
 // Gang-invites are stored in user's gang-invites:<username> DB set.
-// Invite value is <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
+// GangInvite is stored in the format <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
 // Created_UNIX_Timestamp is converted into GangInvite.CreatedTimeAgo
 type GangInvite struct {
-	Admin          string `json:"gang_admin"`
-	Name           string `json:"gang_name"`
-	CreatedTimeAgo string `json:"invite_sent_timeago"`
+	Admin          string `json:"gang_admin,omitempty" valid:"-"`
+	Name           string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
+	CreatedTimeAgo string `json:"invite_sent_timeago,omitempty" valid:"-"`
 }

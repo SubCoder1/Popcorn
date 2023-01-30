@@ -35,7 +35,7 @@ type Repository interface {
 	// GetGangInvites returns a list of invites received by user in Popcorn.
 	GetGangInvites(ctx context.Context, logger log.Logger, username string) ([]entity.GangInvite, error)
 	// DelGangInvite deletes rejected or expired gang invites
-	DelGangInvite(ctx context.Context, logger log.Logger, username string, inviteIndex string) error
+	DelGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// JoinGang adds user to a gang.
 	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error
 	// SearchGang returns paginated gang data depending on the query.
@@ -358,55 +358,7 @@ func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity
 }
 
 // Deletes gang invites, usually triggered by gang invite decline.
-func (r repository) DelGangInvite(ctx context.Context, logger log.Logger, username string, inviteIndex string) error {
-	_, dberr := r.db.Client().ZRem(ctx, "gang-invites:"+username, inviteIndex).Result()
-	if dberr != nil && dberr != redis.Nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SRem() in gang.DelGangInvite")
-		return errors.InternalServerError("")
-	}
-	return nil
-}
-
-// Adds incoming invite request to receiver's gang-invites: set in DB.
-func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
-	// Delete any duplicate invite from the same <invite.Admin>:<invite.Name>:*
-	query := invite.Admin + ":" + invite.Name + ":*"
-	key := "gang-invites:" + invite.For
-	existingInvites, _, dberr := r.db.Client().ZScan(ctx, key, 0, query, 100).Result()
-	if dberr != nil && dberr != redis.Nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Sscan() in gang.SendGangInvite")
-		return errors.InternalServerError("")
-	}
-	for _, inv := range existingInvites {
-		dberr = r.DelGangInvite(ctx, logger, invite.For, inv)
-		if dberr != nil {
-			// Issue in DelGangInvite()
-			return dberr
-		}
-	}
-	// gang-invites:<invite.For> -> <invite.Admin>:<invite.Name>:<Created_UNIX_Timestamp>
-	score, dberr := r.db.Client().ZCard(ctx, key).Result()
-	if dberr != nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.SendGangInvite")
-		return errors.InternalServerError("")
-	}
-	created := strconv.Itoa(int(time.Now().Unix()))
-	inviteIndex := fmt.Sprintf("%s:%s:%s", invite.Admin, invite.Name, created)
-	_, dberr = r.db.Client().ZAdd(ctx, key, &redis.Z{Score: float64(score + 1), Member: inviteIndex}).Result()
-	if dberr != nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SAdd() in gang.SendGangInvite")
-		return errors.InternalServerError("")
-	}
-	return nil
-}
-
-// Accepts a gang invite request and joins the gang.
-func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
-	// Delete the invite from user's gang-invites: set
+func (r repository) DelGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
 	query := invite.Admin + ":" + invite.Name + ":*"
 	inviteKey := "gang-invites:" + invite.For
 	existingInvites, _, dberr := r.db.Client().ZScan(ctx, inviteKey, 0, query, 100).Result()
@@ -420,11 +372,56 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 		return errors.BadRequest("Expired or Invalid Gang Invite")
 	}
 	for _, extinvite := range existingInvites {
-		dberr = r.DelGangInvite(ctx, logger, invite.For, extinvite)
-		if dberr != nil {
-			// Issue in DelGangInvite()
+		_, dberr = r.db.Client().ZRem(ctx, "gang-invites:"+invite.For, extinvite).Result()
+		if dberr != nil && dberr != redis.Nil {
+			// Error during interacting with DB
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SRem() in gang.DelGangInvite")
+			return errors.InternalServerError("")
+		}
+	}
+	return nil
+}
+
+// Adds incoming invite request to receiver's gang-invites: set in DB.
+func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
+	// Delete any duplicate invite from the same <invite.Admin>:<invite.Name>:*
+	invitesKey := "gang-invites:" + invite.For
+	dberr := r.DelGangInvite(ctx, logger, invite)
+	if dberr != nil {
+		// We can ignore existingInvites == 0 check during sendInvites
+		err, ok := dberr.(errors.ErrorResponse)
+		if !ok {
+			return dberr
+		} else if err.Status != 400 {
+			// Issues in DelGangInvite()
 			return dberr
 		}
+	}
+	// gang-invites:<invite.For> -> <invite.Admin>:<invite.Name>:<Created_UNIX_Timestamp>
+	score, dberr := r.db.Client().ZCard(ctx, invitesKey).Result()
+	if dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.SendGangInvite")
+		return errors.InternalServerError("")
+	}
+	created := strconv.Itoa(int(time.Now().Unix()))
+	inviteIndex := fmt.Sprintf("%s:%s:%s", invite.Admin, invite.Name, created)
+	_, dberr = r.db.Client().ZAdd(ctx, invitesKey, &redis.Z{Score: float64(score + 1), Member: inviteIndex}).Result()
+	if dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SAdd() in gang.SendGangInvite")
+		return errors.InternalServerError("")
+	}
+	return nil
+}
+
+// Accepts a gang invite request and joins the gang.
+func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
+	// Delete the invite from user's gang-invites: set
+	dberr := r.DelGangInvite(ctx, logger, invite)
+	if dberr != nil {
+		// Issues in DelGangIndex()
+		return dberr
 	}
 	// Validate if gang by the key gang:<invite.Admin> with <invite.Name> exists
 	gangKey := "gang:" + invite.Admin

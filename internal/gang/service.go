@@ -32,6 +32,8 @@ type Service interface {
 	sendganginvite(ctx context.Context, invite entity.GangInvite) error
 	// Accept gang invite for an user
 	acceptganginvite(ctx context.Context, invite entity.GangInvite) error
+	// Reject gang invite for an user
+	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -198,6 +200,19 @@ func (s service) acceptganginvite(ctx context.Context, invite entity.GangInvite)
 		return errors.BadRequest("Invalid Gang Invite")
 	}
 	return s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
+}
+
+func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite) error {
+	valerr := s.validateGangData(ctx, invite)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	// check if self invite is getting sent
+	if invite.Admin == invite.For {
+		return errors.BadRequest("Invalid Gang Invite")
+	}
+	return s.gangRepo.DelGangInvite(ctx, s.logger, invite)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

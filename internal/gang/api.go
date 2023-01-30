@@ -25,6 +25,7 @@ func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFu
 		gangGroup.POST("/create", createGang(service, logger))
 		gangGroup.POST("/send_invite", sendInvite(service, logger))
 		gangGroup.POST("/accept_invite", acceptInvite(service, logger))
+		gangGroup.POST("/reject_invite", rejectInvite(service, logger))
 	}
 }
 
@@ -266,23 +267,55 @@ func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
 // acceptInvite returns a handler which takes care of accepting gang invite in Popcorn.
 func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		// Fetch username from context which will be used as the sendinvite service
+		// Fetch username from context which will be used as the acceptinvite service
 		username, ok := gctx.Value("Username").(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendInvite")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in acceptInvite")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
 		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
-			fmt.Println(binderr)
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		gangInvite.For = username
 		err := service.acceptganginvite(gctx, gangInvite)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// rejectInvite returns a handler which takes care of rejecting gang invite in Popcorn.
+func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the rejectinvite service
+		username, ok := gctx.Value("Username").(string)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in rejectInvite")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		var gangInvite entity.GangInvite
+		// Serialize received data into GangInvite struct
+		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+			// Error occured during serialization
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+		gangInvite.For = username
+		err := service.rejectganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

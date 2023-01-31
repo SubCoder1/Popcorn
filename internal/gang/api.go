@@ -339,13 +339,14 @@ func bootMemberFromGang(service Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		var boot entity.GangLeave
+		var boot entity.GangExit
 		if binderr := gctx.BindJSON(&boot); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		boot.Key = "gang:" + username
+		boot.Type = "boot"
 		err := service.bootmember(gctx, boot)
 		if err != nil {
 			// Error occured, might be validation or server error

@@ -13,7 +13,7 @@ import (
 )
 
 // Registers all of the REST API handlers related to internal package gang onto the gin server.
-func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
+func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
 	gangGroup := router.Group("/api/gang", AuthWithAcc)
 	{
 		gangGroup.GET("/search", searchGang(service, logger))

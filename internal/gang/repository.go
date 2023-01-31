@@ -38,6 +38,8 @@ type Repository interface {
 	DelGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// JoinGang adds user to a gang.
 	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error
+	// LeaveGang removes an user from a gang.
+	LeaveGang(ctx context.Context, logger log.Logger, boot entity.GangLeave) error
 	// SearchGang returns paginated gang data depending on the query.
 	SearchGang(ctx context.Context, logger log.Logger, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 	// SendGangInvite adds the invite request metadata to respective receiver's gang-invites stack.
@@ -76,7 +78,7 @@ func (r repository) HasGang(ctx context.Context, logger log.Logger, gangKey stri
 			// Error during interacting with DB
 			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.HasGang")
 			return false, errors.InternalServerError("")
-		} else if name != gangName {
+		} else if dberr == redis.Nil || name != gangName {
 			return false, nil
 		}
 	}
@@ -245,28 +247,48 @@ func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, usern
 }
 
 // Leaves the current joined gang
-func (r repository) LeaveGang(ctx context.Context, logger log.Logger, join entity.GangJoin, username string) error {
-	gangKey, dberr := r.db.Client().Get(ctx, "gang-joined:"+username).Result()
+func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entity.GangLeave) error {
+	// Checking if an gang with gangKey and same gangName exists in the DB
+	available, dberr := r.HasGang(ctx, logger, boot.Key, boot.Name)
+	if dberr != nil {
+		// Issues in HasGang()
+		return dberr
+	} else if !available {
+		// Delete index as this request was made through search or invite
+		go r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
+		return errors.BadRequest("Gang doesn't exist")
+	}
+
+	// Delete gang-joined:<boot.Member> key:value from DB
+	// If boot.Key is blank, it means LeaveGang request is coming from JoinGang
+	joinedKey := "gang-joined:" + boot.Member
+	memInGang, dberr := r.db.Client().Get(ctx, joinedKey).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get() in gang.LeaveGang")
 		return errors.InternalServerError("")
-	} else if dberr == redis.Nil || gangKey == "" {
-		// Gang doesn't exist
-		return nil
+	} else if boot.Key != "" && memInGang != boot.Key {
+		// This member is not in the gang by the key boot.Key
+		return errors.BadRequest("Member not in this gang")
+	}
+	_, dberr = r.db.Client().Del(ctx, joinedKey).Result()
+	if dberr != nil && dberr != redis.Nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Del() in gang.LeaveGang")
+		return errors.InternalServerError("")
 	}
 	// Fetch gangMemberKey
-	gangMemberKey, dberr := r.db.Client().HGet(ctx, gangKey, "gang_members_key").Result()
+	gangMemberKey, dberr := r.db.Client().HGet(ctx, boot.Key, "gang_members_key").Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.LeaveGang")
 		return errors.InternalServerError("")
 	} else if dberr == redis.Nil || gangMemberKey == "" {
 		// GangMembers doesn't exist
-		go r.delGangIndex(ctx, logger, gangKey+":"+join.Name)
+		go r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
 		return nil
 	}
-	_, dberr = r.db.Client().SRem(ctx, gangMemberKey, username).Result()
+	_, dberr = r.db.Client().SRem(ctx, gangMemberKey, boot.Member).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SRem() in gang.LeaveGang")
@@ -277,18 +299,54 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, join entit
 
 // Returns nil if user got successfully added to the gang.
 func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity.GangJoin, username string) error {
-	// Checking if an gang with gangKey and same gangName exists in the DB
-	available, dberr := r.HasGang(ctx, logger, join.Key, join.Name)
+	// Check if gang can take a member in by checking if current gang members count + 1 < members_limit
+	gangLimitStr, dberr := r.db.Client().HGet(ctx, join.Key, "gang_member_limit").Result()
 	if dberr != nil {
-		// Issues in HasGang()
-		return dberr
-	} else if !available {
-		// Delete index as this request was made through search or invite
-		go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
-		return errors.BadRequest("Gang doesn't exist")
+		if dberr == redis.Nil || len(gangLimitStr) == 0 {
+			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			return errors.BadRequest("Gang doesn't exist")
+		}
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.JoinGang")
+		return errors.InternalServerError("")
 	}
-	// Remove user from existing joined gang members list (if currently joined in any gang)
-	dberr = r.LeaveGang(ctx, logger, join, username)
+	gangLimit, prserr := strconv.Atoi(gangLimitStr)
+	if prserr != nil {
+		// Parse error
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Parse error during parsing gangLimit in gang.JoinGang")
+		return errors.InternalServerError("")
+	}
+	// Fetch memberListKey from gang
+	gangMemberKey, dberr := r.db.Client().HGet(ctx, join.Key, "gang_members_key").Result()
+	if dberr != nil {
+		if dberr == redis.Nil || len(gangMemberKey) == 0 {
+			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			return errors.BadRequest("Gang doesn't exist")
+		}
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.JoinGang")
+		return errors.InternalServerError("")
+	}
+	currMembersCount, dberr := r.db.Client().SCard(ctx, gangMemberKey).Result()
+	if dberr != nil {
+		if dberr == redis.Nil || currMembersCount == 0 {
+			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			return errors.BadRequest("Gang doesn't exist")
+		}
+		// Error interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.JoinGang")
+		return errors.InternalServerError("")
+	} else if int(currMembersCount)+1 > gangLimit {
+		return errors.BadRequest("Gang Limit Exceeded")
+	}
+
+	// Remove user from existing joined gang (if any)
+	boot := entity.GangLeave{
+		Member: username,
+		Name:   join.Name,
+		Key:    "",
+	}
+	dberr = r.LeaveGang(ctx, logger, boot)
 	if dberr != nil {
 		// Issues in LeaveGang
 		return dberr
@@ -302,18 +360,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Set() in gang.JoinGang")
 		return errors.InternalServerError("")
 	}
-	// Fetch memberListKey from gang
-	gangMemberKey, dberr := r.db.Client().HGet(ctx, join.Key, "gang_members_key").Result()
-	if dberr != nil && dberr != redis.Nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGet() in gang.JoinGang")
-		return errors.InternalServerError("")
-	} else if dberr == redis.Nil || gangMemberKey == "" {
-		// No key found which matches gangMemberKey
-		logger.WithCtx(ctx).Error().Err(dberr).Msg(fmt.Sprintf("gang_members_key not found in %s", join))
-		go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
-		return errors.BadRequest("Gang doesn't exist")
-	}
+
 	// Add user with username into the GangMembersList
 	_, err := r.SetGangMembers(ctx, logger, gangMemberKey, username)
 	if err != nil {

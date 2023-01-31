@@ -13,8 +13,8 @@ type Gang struct {
 	Created        int64  `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
 }
 
-// Response structure of Gangs in Popcorn, typically used in get methods
-// Used to send gang data to client
+// Response structure of Gangs in Popcorn, typically used in get methods.
+// Used to send gang data to client.
 type GangResponse struct {
 	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin"`
 	Name           string `json:"gang_name" redis:"gang_name"`
@@ -25,12 +25,12 @@ type GangResponse struct {
 	CreatedTimeAgo string `json:"gang_created_timeago"`
 }
 
-// Saved in DB as gang-members:<members>
+// Saved in DB as gang-members:<members>.
 type GangMembersList struct {
 	MembersList []string `json:"gang_member_list,omitempty" redis:"gang_member_list" valid:"-"`
 }
 
-// Used to bind and validate join_gang request
+// Used to bind and validate join_gang request.
 type GangJoin struct {
 	Admin   string `json:"gang_admin" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~admin:No spaces allowed here"`
 	Name    string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
@@ -38,7 +38,7 @@ type GangJoin struct {
 	PassKey string `json:"gang_passkey" valid:"required,type(string),minstringlength(5)"`
 }
 
-// Used to bind and validate search_gang request
+// Used to bind and validate search_gang request.
 type GangSearch struct {
 	Name   string `valid:"required,type(string),printableascii,stringlength(1|20),gangname_custom~Name:Invalid Gang Name"`
 	Cursor int    `valid:"-"`
@@ -53,4 +53,11 @@ type GangInvite struct {
 	Name           string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
 	CreatedTimeAgo string `json:"invite_sent_timeago,omitempty" valid:"-"`
+}
+
+// Used to bind and validate boot_member or leave_gang request.
+type GangLeave struct {
+	Member string `json:"member_name" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
+	Name   string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	Key    string `json:"-" valid:"-"`
 }

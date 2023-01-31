@@ -6,7 +6,6 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -26,6 +25,7 @@ func GangHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFu
 		gangGroup.POST("/send_invite", sendInvite(service, logger))
 		gangGroup.POST("/accept_invite", acceptInvite(service, logger))
 		gangGroup.POST("/reject_invite", rejectInvite(service, logger))
+		gangGroup.POST("/boot_member", bootMemberFromGang(service, logger))
 	}
 }
 
@@ -243,7 +243,6 @@ func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
 		// Serialize received data into GangInvite struct
 		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
-			fmt.Println(binderr)
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
@@ -316,6 +315,38 @@ func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		gangInvite.For = username
 		err := service.rejectganginvite(gctx, gangInvite)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// Kicks a member out of a gang, triggered by gang Admin only
+func bootMemberFromGang(service Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the bootmember service
+		username, ok := gctx.Value("Username").(string)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		var boot entity.GangLeave
+		if binderr := gctx.BindJSON(&boot); binderr != nil {
+			// Error occured during serialization
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+		boot.Key = "gang:" + username
+		err := service.bootmember(gctx, boot)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

@@ -134,6 +134,6 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger,
 	user.APIHandlers(server, userService, accAuthMiddleware, logger)
 	// Register internal package gang handler
 	gangService := gang.NewService(gangRepo, userRepo, logger)
-	gang.GangHandlers(server, gangService, accAuthMiddleware, logger)
+	gang.APIHandlers(server, gangService, accAuthMiddleware, logger)
 	return server
 }

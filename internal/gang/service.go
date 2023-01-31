@@ -34,6 +34,8 @@ type Service interface {
 	acceptganginvite(ctx context.Context, invite entity.GangInvite) error
 	// Reject gang invite for an user
 	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
+	// kicks a member out of a gang
+	bootmember(ctx context.Context, boot entity.GangLeave) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -213,6 +215,15 @@ func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite)
 		return errors.BadRequest("Invalid Gang Invite")
 	}
 	return s.gangRepo.DelGangInvite(ctx, s.logger, invite)
+}
+
+func (s service) bootmember(ctx context.Context, boot entity.GangLeave) error {
+	valerr := s.validateGangData(ctx, boot)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	return s.gangRepo.LeaveGang(ctx, s.logger, boot)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

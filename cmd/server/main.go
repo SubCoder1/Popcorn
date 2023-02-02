@@ -1,4 +1,5 @@
-// The main file of Popcorn.
+// The main.go of Popcorn where everything from loggers, Dbs to routers are configured.
+// Distributions of third-party pkgs into internal services and repositories are also handled here.
 
 package main
 

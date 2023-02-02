@@ -1,6 +1,8 @@
 package middlewares
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +16,7 @@ func CORSMiddleware(addr string) gin.HandlerFunc {
 		gctx.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
 		if gctx.Request.Method == "OPTIONS" {
-			gctx.AbortWithStatus(204)
+			gctx.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 

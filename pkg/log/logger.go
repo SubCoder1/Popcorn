@@ -6,27 +6,12 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
 )
-
-// Output of Logger based on what environment Popcorn is being run on.
-var output io.Writer
-
-func init() {
-	// setting configurations for logger
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	zerolog.TimeFieldFormat = time.RFC3339Nano
-	if os.Getenv("ENV") == "DEV" {
-		// Set output of Logger to prettified ConsoleOutput for local environment
-		output = zerolog.ConsoleWriter{Out: os.Stdout}
-	} else {
-		// ConsoleWriter prettifies log, inefficient in prod
-		output = os.Stdout
-	}
-}
 
 // Logger acts as a wrapper for zerolog with custom features.
 type Logger interface {
@@ -48,17 +33,42 @@ type logger struct {
 	zerolog.Logger
 }
 
+// Output of Logger based on what environment Popcorn is being run on.
+var output io.Writer
+
+// Global logger instance which is being used all over Popcorn, instantiated by New().
+var globalLogger *logger
+
+// sync.Once singleton is used to make sure configs and globalLogger instantiation is done only once.
+var once sync.Once
+
 // Creates a new logger instance for other packages to use the internal zerolog.
 func New(version string) Logger {
-	return &logger{zerolog.New(output).With().Str("Version", version).Timestamp().Caller().Stack().Logger()}
+	once.Do(func() {
+		// setting configurations for logger
+		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+		zerolog.TimeFieldFormat = time.RFC3339Nano
+		if os.Getenv("ENV") == "DEV" {
+			// Set output of Logger to prettified ConsoleOutput for local environment
+			output = zerolog.ConsoleWriter{Out: os.Stdout}
+		} else {
+			// ConsoleWriter prettifies log, inefficient in prod
+			output = os.Stdout
+		}
+		// Instantiate the globalLogger
+		globalLogger = &logger{zerolog.New(output).With().Str("Version", version).Timestamp().Caller().Stack().Logger()}
+	})
+	return globalLogger
 }
 
-// Returns a sub-logger by adding additional requestID context to it.
+// Returns a sub-logger by adding additional correlationID context to it.
 // Helps in debugging issues.
 func (l *logger) WithCtx(ctx context.Context) Logger {
-	requestID := ctx.Value("ReqID")
-	if requestID != nil {
-		return &logger{l.With().Str("ReqID", requestID.(string)).Timestamp().Caller().Stack().Logger()}
+	correlationID := ctx.Value("correlation_id")
+	if correlationID != nil {
+		if crrID, ok := correlationID.(string); ok {
+			return &logger{l.With().Str("correlationID", crrID).Timestamp().Caller().Stack().Logger()}
+		}
 	}
 	return l
 }

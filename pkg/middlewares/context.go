@@ -4,18 +4,17 @@ import (
 	"Popcorn/pkg/log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	"github.com/rs/xid"
 )
 
-// This middleware will be used to populate every incoming request's context with an Unique UUID.
-// This middleware will be used as a global one.
-func UniqueIDMiddleware(logger log.Logger) gin.HandlerFunc {
+// This middleware will be used to populate every incoming request's context with an Unique CorrelationID.
+// Which will help to debug an issue which happened between a chain of events during handling a request.
+func CorrelationMiddleware(logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		rqId, uuiderr := uuid.NewRandom()
-		if uuiderr != nil {
-			logger.Error().Err(uuiderr).Msg("Error during generating UUID for ReqID.")
-		} else {
-			gctx.Set("ReqID", rqId.String())
-		}
+		correlationID := xid.New().String()
+		// Setting the correlationID in request's context
+		gctx.Set("correlation_id", correlationID)
+		// Setting the correlationID to response header
+		gctx.Writer.Header().Set("X-Correlation-ID", correlationID)
 	}
 }

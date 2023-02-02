@@ -24,9 +24,9 @@ import (
 
 var (
 	// Indicates the current version of Popcorn.
-	Version = "1.0.0"
+	version string = os.Getenv("VERSION")
 	// Loads the environment set for Popcorn to run on [DEV, PROD].
-	environment = os.Getenv("ENV")
+	environment string = os.Getenv("ENV")
 )
 
 func main() {
@@ -34,11 +34,9 @@ func main() {
 	ctx := context.Background()
 
 	// Initializing the logger
-	logger := log.New(Version)
+	logger := log.New(version)
 
-	if len(environment) == 0 {
-		// Fatal starts a new message with fatal level
-		// The os.Exit(1) function is called by the Msg method, which terminates the program immediately
+	if environment == "" {
 		// if environment is empty, it means the env file wasn't correctly loaded into the platform. Exit immediately!
 		logger.Fatal().Err(errors.New("os couldn't load Environment variables.")).Msg("")
 	}

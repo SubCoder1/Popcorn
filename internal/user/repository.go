@@ -8,7 +8,6 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -20,9 +19,6 @@ type Repository interface {
 	SetUser(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
 	// HasUser returns a boolean depending on user's availability.
 	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
-	// Increments the current number of Users to 1 and returns the new total.
-	// Util used during user registration.
-	IncrTotalUsers(ctx context.Context, logger log.Logger) error
 	// SearchGang returns paginated gang data depending on the query.
 	SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch, username string) ([]entity.User, uint64, error)
 }
@@ -108,17 +104,6 @@ func (r repository) HasUser(ctx context.Context, logger log.Logger, username str
 		return false, nil
 	}
 	return true, nil
-}
-
-// Increments the total number of users in Popcorn.
-func (r repository) IncrTotalUsers(ctx context.Context, logger log.Logger) error {
-	newTotal, dberr := r.db.Client().IncrBy(ctx, "users", 1).Result()
-	if dberr != nil {
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.IncrBy in user.IncTotal")
-		return errors.InternalServerError("")
-	}
-	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Current total users in Popcorn - %d", newTotal))
-	return nil
 }
 
 // Returns user data matching incoming query in DB.

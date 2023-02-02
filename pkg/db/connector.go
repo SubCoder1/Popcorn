@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -17,24 +18,34 @@ type RedisDB struct {
 	client *redis.Client
 }
 
+// Global DB instance to be used all over Popcorn.
+var globalDbClient *RedisDB
+
+// sync.Once singleton is used to make sure configs and DB instantiation is done only once.
+var once sync.Once
+
 // Client returns the redis client wrapped by RedisDB.
 func (db *RedisDB) Client() *redis.Client {
 	return db.client
 }
 
 // Returns a new Redis DB connection wrapped up by RedisDB struct.
-func NewDBConnection(ctx context.Context, logger log.Logger, client *redis.Client) *RedisDB {
-	dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
-	if strerr != nil {
-		logger.WithCtx(ctx).Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
-	}
-	// Initializing a connection to Redis-server.
-	client = redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR") + ":" + os.Getenv("REDIS_PORT"),
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       dbNumber,
+func NewDBConnection(ctx context.Context, logger log.Logger) *RedisDB {
+	once.Do(func() {
+		dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
+		if strerr != nil {
+			logger.WithCtx(ctx).Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
+		}
+		// Initializing a connection to Redis-server
+		client := redis.NewClient(&redis.Options{
+			Addr:     os.Getenv("REDIS_ADDR") + ":" + os.Getenv("REDIS_PORT"),
+			Password: os.Getenv("REDIS_PASSWORD"),
+			DB:       dbNumber,
+		})
+		// Instantiate globalDbClient once
+		globalDbClient = &RedisDB{client: client}
 	})
-	return &RedisDB{client: client}
+	return globalDbClient
 }
 
 // Helper to check connection status of redis client to redis-server.
@@ -49,29 +60,6 @@ func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) {
 	}
 	// Connection successful
 	logger.WithCtx(ctx).Info().Msg("Connection to DB Successful")
-}
-
-// Helper to check if key:value exists in the DB. Sets the key to 0 if not.
-// Best to use this util before starting gin.
-func (db *RedisDB) SetGlobKeyIfNotExists(ctx context.Context, logger log.Logger, keys map[string]interface{}) (map[string]bool, error) {
-	res := make(map[string]bool)
-	if _, dberr := db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
-		for key, val := range keys {
-			r, qryerr := client.SetNX(ctx, key, val, -1).Result()
-			if qryerr != nil {
-				logger.WithCtx(ctx).Error().Err(qryerr).Msg("Error during execution of queries inside redis.Pipelined() in conn.SetKeyIfNotExists")
-				return qryerr
-			} else {
-				// true means set; false means already exist
-				res[key] = r
-			}
-		}
-		return nil
-	}); dberr != nil {
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in conn.SetKeyIfNotExists")
-		return res, dberr
-	}
-	return res, nil
 }
 
 // Helper to close the RedisDB client, should be called before closing the server.

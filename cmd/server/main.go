@@ -19,7 +19,6 @@ import (
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 )
 
 var (
@@ -31,7 +30,7 @@ var (
 
 func main() {
 	// Top-level context of Popcorn
-	ctx := context.WithValue(context.Background(), "ReqID", "main")
+	ctx := context.Background()
 
 	// Initializing the logger
 	logger := log.New(Version)
@@ -40,25 +39,16 @@ func main() {
 		// Fatal starts a new message with fatal level
 		// The os.Exit(1) function is called by the Msg method, which terminates the program immediately
 		// if environment is empty, it means the env file wasn't correctly loaded into the platform. Exit immediately!
-		logger.WithCtx(ctx).Fatal().Err(errors.New("os couldn't load ENV.")).Msg("")
+		logger.Fatal().Err(errors.New("os couldn't load Environment variables.")).Msg("")
 	}
-	logger.WithCtx(ctx).Info().Msg("Welcome to Popcorn")
-	logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Popcorn Environment: %s", environment))
+	logger.Info().Msg("Welcome to Popcorn")
+	logger.Info().Msg(fmt.Sprintf("Popcorn Environment: %s", environment))
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
-	var client *redis.Client
-	dbConnWrp := db.NewDBConnection(ctx, logger, client)
+	dbConnWrp := db.NewDBConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
 	dbConnWrp.CheckDBConnection(ctx, logger)
-	// Setting default values to global keys if not exist already in the DB
-	// Ex of global key: total number of users -> users:0
-	// The values of these global keys will be used/changed internally
-	globalDBkeys := map[string]interface{}{"users": 0}
-	if _, dberr := dbConnWrp.SetGlobKeyIfNotExists(ctx, logger, globalDBkeys); dberr != nil {
-		// Global keys not set, better to exit else unknown issues will pop-up in server code
-		os.Exit(3)
-	}
 
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
@@ -77,10 +67,8 @@ func main() {
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
-		logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
-		if err := srv.ListenAndServe(); err != nil {
-			logger.Error().Err(err).Msg("Error in ListenAndServe()")
-		}
+		logger.Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
+		logger.Error().Err(srv.ListenAndServe()).Msg("Error in ListenAndServe()")
 	}()
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
@@ -101,20 +89,14 @@ func buildHandler(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger,
 	accSecret := os.Getenv("ACCESS_SECRET")
 	refSecret := os.Getenv("REFRESH_SECRET")
 
-	// Set the gin mode according to environment
-	if environment == "DEV" {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
 	// Initializing the gin server
 	server := gin.New()
 
 	// Declare global middlewares here
-	server.Use(log.LoggerGinExtension(logger))          // Forcing gin to use custom Logger instead of the default one
-	server.Use(gin.Recovery())                          // Recovery middleware recovers from any panics and writes a 500 if there was one
-	server.Use(middlewares.UniqueIDMiddleware(logger))  // Fill up every request with unique UUID
-	server.Use(middlewares.CORSMiddleware(client_addr)) // CORS middleware
+	server.Use(log.LoggerGinExtension(logger))            // Forcing gin to use custom Logger instead of the default one
+	server.Use(gin.Recovery())                            // Recovery middleware recovers from any panics and writes a 500 if there was one
+	server.Use(middlewares.CorrelationMiddleware(logger)) // Fill up every request with unique CorrelationID
+	server.Use(middlewares.CORSMiddleware(client_addr))   // CORS middleware
 
 	// Create Repository instance which will be used internally being passed around through service params
 	authRepo := auth.NewRepository(dbConnWrp)

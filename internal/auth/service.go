@@ -70,14 +70,6 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 		return token, errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
-	// users is a global key in db used to store current total number of users in Popcorn
-	// Increment users by 1 and use that value as userID
-	dberr = s.userRepo.IncrTotalUsers(ctx, s.logger)
-	if dberr != nil {
-		// Error occured in IncrTotal()
-		return token, dberr
-	}
-
 	// Hash user password and save the credentials in the user object
 	hasheduserpwd, hasherr := s.generatePwDHash(ctx, ue.Password)
 	if hasherr != nil {

@@ -48,11 +48,11 @@ func New(version string) Logger {
 		// setting configurations for logger
 		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 		zerolog.TimeFieldFormat = time.RFC3339Nano
-		if os.Getenv("ENV") == "DEV" {
+		if os.Getenv("ENV") != "PROD" {
 			// Set output of Logger to prettified ConsoleOutput for local environment
 			output = zerolog.ConsoleWriter{Out: os.Stdout}
 		} else {
-			// ConsoleWriter prettifies log, inefficient in prod
+			// ConsoleWriter prettifies log, inefficient in production environment
 			output = os.Stdout
 		}
 		// Instantiate the globalLogger

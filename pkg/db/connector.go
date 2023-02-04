@@ -30,7 +30,7 @@ func (db *RedisDB) Client() *redis.Client {
 }
 
 // Returns a new Redis DB connection wrapped up by RedisDB struct.
-func NewDBConnection(ctx context.Context, logger log.Logger) *RedisDB {
+func NewDbConnection(ctx context.Context, logger log.Logger) *RedisDB {
 	once.Do(func() {
 		dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
 		if strerr != nil {
@@ -50,7 +50,7 @@ func NewDBConnection(ctx context.Context, logger log.Logger) *RedisDB {
 
 // Helper to check connection status of redis client to redis-server.
 // Equivalent to a PING request on redis-server, returns PONG on success.
-func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) {
+func (db *RedisDB) CheckDbConnection(ctx context.Context, logger log.Logger) {
 	logger.WithCtx(ctx).Info().Msg("Checking DB Connection . . .")
 	// Pinging the Redis-server to check connection status
 	cnterr := db.Client().Ping(ctx).Err()
@@ -62,7 +62,18 @@ func (db *RedisDB) CheckDBConnection(ctx context.Context, logger log.Logger) {
 	logger.WithCtx(ctx).Info().Msg("Connection to DB Successful")
 }
 
+// Helper to clean up test db after finishing Popcorn tests.
+func (db *RedisDB) CleanTestDbData(ctx context.Context, logger log.Logger) {
+	if db.Client().Options().DB == 1 {
+		dberr := db.Client().FlushDB(ctx).Err()
+		if dberr != nil {
+			// Error during flushing test db
+			logger.Error().Err(dberr).Msg("Error occured during the execution of FlushDB() in db.CleanTestDbData")
+		}
+	}
+}
+
 // Helper to close the RedisDB client, should be called before closing the server.
-func (db *RedisDB) CloseDBConnection(ctx context.Context) error {
+func (db *RedisDB) CloseDbConnection(ctx context.Context) error {
 	return db.Client().Close()
 }

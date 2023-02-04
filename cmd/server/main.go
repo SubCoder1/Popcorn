@@ -45,9 +45,9 @@ func main() {
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
-	dbConnWrp := db.NewDBConnection(ctx, logger)
+	dbConnWrp := db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
-	dbConnWrp.CheckDBConnection(ctx, logger)
+	dbConnWrp.CheckDbConnection(ctx, logger)
 
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
@@ -71,7 +71,7 @@ func main() {
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
 	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Second, map[string]cleanup.Operation{
 		"Redis-server": func(ctx context.Context) error {
-			return dbConnWrp.CloseDBConnection(ctx)
+			return dbConnWrp.CloseDbConnection(ctx)
 		},
 		"Gin": func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
@@ -85,6 +85,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Set any environment variables to be used in handlers here
 	accSecret := os.Getenv("ACCESS_SECRET")
 	refSecret := os.Getenv("REFRESH_SECRET")
+	addr := os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
 
 	// Initializing the gin server
 	router := gin.New()
@@ -93,7 +94,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	router.Use(log.LoggerGinExtension(logger))            // Forcing gin to use custom Logger instead of the default one
 	router.Use(gin.Recovery())                            // Recovery middleware recovers from any panics and writes a 500 if there was one
 	router.Use(middlewares.CorrelationMiddleware(logger)) // Fill up every request with unique CorrelationID
-	router.Use(middlewares.CORSMiddleware())              // CORS middleware
+	router.Use(middlewares.CORSMiddleware(addr))          // CORS middleware
 
 	// Create Repository instance which will be used internally being passed around through service params
 	authRepo := auth.NewRepository(dbConnWrp)

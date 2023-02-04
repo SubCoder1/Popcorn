@@ -91,6 +91,18 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 	}
 }
 
+// Mock authentication middleware used to bypass auth during tests.
+func MockAuthMiddleware(logger log.Logger, tokenType string) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		token := FetchTokenFromCookie(gctx, logger, tokenType)
+		if token == "" {
+			gctx.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		gctx.Next()
+	}
+}
+
 // Helper to fetch token string from Header.
 func FetchTokenFromCookie(gctx *gin.Context, logger log.Logger, tokenType string) string {
 	var token *http.Cookie

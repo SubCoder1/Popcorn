@@ -4,6 +4,7 @@ package auth
 
 import (
 	"Popcorn/internal/entity"
+	"Popcorn/internal/test"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
@@ -12,14 +13,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/joho/godotenv"
 )
@@ -37,7 +35,7 @@ var client *db.RedisDB
 type AuthTestData struct {
 	Register map[string]struct {
 		Body         entity.User `json:"body"`
-		WantResponse int         `json:"response"`
+		WantResponse []int       `json:"response"`
 	} `json:"register"`
 }
 
@@ -113,29 +111,25 @@ func TestMain(m *testing.M) {
 
 func TestRegister(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/auth.json -> register
-	for test, request := range testdata.Register {
-		logger.Info().Msg(fmt.Sprintf("Running test - %s", test))
-		request := request // Fixes "loop variable request captured by func literal" issue
-		t.Run(test, func(t *testing.T) {
+	for name, data := range testdata.Register {
+		logger.Info().Msg(fmt.Sprintf("Running test - %s", name))
+		data := data // Fixes "loop variable request captured by func literal" issue
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			// Convert request.Body into bytes to add in NewRequest
-			body, mrserr := json.Marshal(request.Body)
+			body, mrserr := json.Marshal(data.Body)
 			if mrserr != nil {
 				logger.Error().Err(mrserr).Msg("Couldn't marshall authtest struct into json in TestRegister()")
 				t.Fatal()
 			}
-			// Make the test request
-			req, reqerr := http.NewRequest("POST", "/api/auth/register", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			if reqerr != nil {
-				// Error in NewRequest
-				logger.Error().Err(reqerr).Msg("Error occured during calling NewRequest in TestRegister()")
+			request := test.RequestAPITest{
+				Method:       "POST",
+				Path:         "/api/auth/register",
+				Body:         bytes.NewReader(body),
+				WantResponse: data.WantResponse,
+				Headers:      map[string]string{"Content-Type": "application/json"},
 			}
-			w := httptest.NewRecorder()
-			mockRouter.ServeHTTP(w, req)
-			// t.Log(w.Body)
-			// Assert the response
-			assert.Equal(t, request.WantResponse, w.Code)
+			test.ExecuteAPITest(logger, t, mockRouter, request)
 		})
 	}
 }

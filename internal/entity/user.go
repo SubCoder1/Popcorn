@@ -9,15 +9,21 @@ import (
 
 // Saved in DB as user:<gang_name>
 type User struct {
-	Username   string `json:"username" redis:"username" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
-	FullName   string `json:"full_name,omitempty" redis:"full_name" valid:"type(string),stringlength(5|30),ascii,fullname_custom~full_name:Invalid Fullname,optional"`
+	Username   string `json:"username" redis:"username" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
+	FullName   string `json:"full_name" redis:"full_name" valid:"required,type(string),stringlength(5|30),ascii,fullname_custom~full_name:Invalid Fullname"`
 	Password   string `json:"password,omitempty" redis:"password" valid:"required,type(string),minstringlength(5),pwdstrength~password:At least 1 letter and 1 number is mandatory"`
 	ProfilePic string `json:"user_profile_pic,omitempty" redis:"user_profile_pic" valid:"-"`
 }
 
+// Used to bind and validate user_login request
+type UserLogin struct {
+	Username string `json:"username" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
+	Password string `json:"password" valid:"required,type(string),minstringlength(5),pwdstrength~password:At least 1 letter and 1 number is mandatory"`
+}
+
 // Used to validate search_user request
 type UserSearch struct {
-	Username string `valid:"required,type(string),printableascii,stringlength(1|20),username_custom~username:Invalid Username"`
+	Username string `valid:"required,type(string),printableascii,stringlength(1|30),username_custom~username:Invalid Username"`
 	Cursor   int    `valid:"-"`
 }
 

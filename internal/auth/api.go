@@ -86,7 +86,7 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 // login returns a handler which takes care of user login in Popcorn.
 func login(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		var user entity.User
+		var user entity.UserLogin
 
 		// Serialize received data into User struct
 		if binderr := gctx.BindJSON(&user); binderr != nil {

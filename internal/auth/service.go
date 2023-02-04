@@ -24,7 +24,7 @@ type Service interface {
 	// Registers an user in Popcorn with valid user credentials
 	register(ctx context.Context, user entity.User) (map[string]any, error)
 	// Logs-in an user into Popcorn with valid user credentials
-	login(ctx context.Context, user entity.User) (map[string]any, error)
+	login(ctx context.Context, user entity.UserLogin) (map[string]any, error)
 	// Logs-out an user from Popcorn
 	logout(ctx context.Context) error
 	// Generates a fresh JWT for an user in Popcorn
@@ -81,8 +81,14 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	ue.ProfilePic = ue.SelectProfilePic()
 
 	// Save the user in the DB
-	_, dberr = s.userRepo.SetUser(ctx, s.logger, ue, true, false)
+	_, dberr = s.userRepo.SetOrUpdateUser(ctx, s.logger, ue, false)
 	if dberr != nil {
+		err, ok := dberr.(errors.ErrorResponse)
+		if ok && err.StatusCode() == 400 {
+			// User by the received username is already available in the platform
+			valerr := errors.New("username:username is already taken")
+			return token, errors.GenerateValidationErrorResponse([]error{valerr})
+		}
 		// Error occured in Set()
 		return token, dberr
 	}
@@ -109,7 +115,7 @@ func (s service) register(ctx context.Context, ue entity.User) (map[string]any, 
 	return token, nil
 }
 
-func (s service) login(ctx context.Context, request entity.User) (map[string]any, error) {
+func (s service) login(ctx context.Context, request entity.UserLogin) (map[string]any, error) {
 	token := make(map[string]any)
 
 	// Validate the received user data which is serialized to entity.User struct
@@ -139,11 +145,6 @@ func (s service) login(ctx context.Context, request entity.User) (map[string]any
 		return token, errors.Unauthorized("Username or Password is incorrect")
 	}
 
-	// Set user's profile pic
-	user.ProfilePic = user.SelectProfilePic()
-
-	// Save the user in the DB
-	_, dberr = s.userRepo.SetUser(ctx, s.logger, user, true, true)
 	if dberr != nil {
 		// Error occured in Set()
 		return token, dberr
@@ -210,7 +211,7 @@ func (s service) refreshtoken(ctx context.Context, username string) (map[string]
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
-func (s service) validateUserData(ctx context.Context, ue entity.User) error {
+func (s service) validateUserData(ctx context.Context, ue interface{}) error {
 	_, valerr := govalidator.ValidateStruct(ue)
 	if valerr != nil {
 		valerr := valerr.(govalidator.Errors).Errors()

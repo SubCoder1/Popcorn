@@ -5,6 +5,7 @@ package db
 import (
 	"Popcorn/pkg/log"
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -15,7 +16,8 @@ import (
 
 // RedisDB represents a redis client connection to be used internally in Popcorn.
 type RedisDB struct {
-	client *redis.Client
+	client       *redis.Client
+	txMaxRetries int
 }
 
 // Global DB instance to be used all over Popcorn.
@@ -29,21 +31,39 @@ func (db *RedisDB) Client() *redis.Client {
 	return db.client
 }
 
+// GetMaxRetries returns the number of allowed retries in a watched redis transaction
+func (db *RedisDB) GetMaxRetries() int {
+	return db.txMaxRetries
+}
+
 // Returns a new Redis DB connection wrapped up by RedisDB struct.
 func NewDbConnection(ctx context.Context, logger log.Logger) *RedisDB {
 	once.Do(func() {
-		dbNumber, strerr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
-		if strerr != nil {
-			logger.WithCtx(ctx).Fatal().Err(strerr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
+		addr := os.Getenv("REDIS_ADDR")
+		port := os.Getenv("REDIS_PORT")
+		pwd := os.Getenv("REDIS_PASSWORD")
+		if addr == "" || port == "" || pwd == "" {
+			logger.WithCtx(ctx).Fatal().Err(errors.New("improper Environment variables")).Msg("")
 		}
+		dbNumber, prserr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
+		if prserr != nil {
+			// Couldn't convert to int
+			logger.WithCtx(ctx).Fatal().Err(prserr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
+		}
+		maxRetries, prserr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_TX_MAX_RETRIES")))
+		if prserr != nil {
+			// Couldn't convert to int
+			logger.WithCtx(ctx).Fatal().Err(prserr).Msg("Couldn't parse ENV: REDIS_TX_MAX_RETRIES")
+		}
+
 		// Initializing a connection to Redis-server
 		client := redis.NewClient(&redis.Options{
-			Addr:     os.Getenv("REDIS_ADDR") + ":" + os.Getenv("REDIS_PORT"),
-			Password: os.Getenv("REDIS_PASSWORD"),
+			Addr:     addr + ":" + port,
+			Password: pwd,
 			DB:       dbNumber,
 		})
-		// Instantiate globalDbClient once
-		globalDbClient = &RedisDB{client: client}
+		// Initializing globalDbClient once
+		globalDbClient = &RedisDB{client: client, txMaxRetries: maxRetries}
 	})
 	return globalDbClient
 }

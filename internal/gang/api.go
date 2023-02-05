@@ -35,7 +35,7 @@ func createGang(service Service, logger log.Logger) gin.HandlerFunc {
 		var gang entity.Gang
 
 		// Serialize received data into User struct
-		if binderr := gctx.BindJSON(&gang); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
@@ -166,7 +166,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		var gangKey entity.GangJoin
 		// Serialize received data into GangKey struct
-		if binderr := gctx.BindJSON(&gangKey); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&gangKey); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
@@ -241,7 +241,7 @@ func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
-		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
@@ -275,7 +275,7 @@ func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
-		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
@@ -308,7 +308,7 @@ func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
-		if binderr := gctx.BindJSON(&gangInvite); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
@@ -340,7 +340,7 @@ func bootMemberFromGang(service Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var boot entity.GangExit
-		if binderr := gctx.BindJSON(&boot); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&boot); binderr != nil {
 			// Error occured during serialization
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return

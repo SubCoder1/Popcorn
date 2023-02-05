@@ -33,7 +33,7 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 		var user entity.User
 
 		// Serialize received data into User struct
-		if binderr := gctx.BindJSON(&user); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&user); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
@@ -89,7 +89,7 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 		var user entity.UserLogin
 
 		// Serialize received data into User struct
-		if binderr := gctx.BindJSON(&user); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&user); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))

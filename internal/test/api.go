@@ -29,7 +29,7 @@ func ExecuteAPITest(logger log.Logger, t *testing.T, router *gin.Engine, request
 	}
 	if reqerr != nil {
 		// Error in NewRequest
-		logger.Error().Err(reqerr).Msg("Error occured during calling NewRequest in TestRegister()")
+		logger.Error().Err(reqerr).Msg("Error occured during calling NewRequest in ExecuteAPITest()")
 	}
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

@@ -88,6 +88,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	addr := os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
 
 	// Initializing the gin server
+	ginMode := os.Getenv("GIN_MODE")
+	gin.SetMode(ginMode)
 	router := gin.New()
 
 	// Declare global middlewares here

@@ -16,7 +16,7 @@ type Repository interface {
 	// GetUser returns the user with username if exists.
 	GetUser(ctx context.Context, logger log.Logger, username string) (entity.User, error)
 	// SetUser adds the user with credentials saved in ue into the DB.
-	SetUser(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error)
+	SetOrUpdateUser(ctx context.Context, logger log.Logger, user entity.User, userExistCheck bool) (bool, error)
 	// HasUser returns a boolean depending on user's availability.
 	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// SearchGang returns paginated gang data depending on the query.
@@ -55,33 +55,50 @@ func (r repository) GetUser(ctx context.Context, logger log.Logger, username str
 	return user, nil
 }
 
-// Returns true if user got successfully added into the DB.
-func (r repository) SetUser(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool, setProfPicOnly bool) (bool, error) {
+// Returns true if user got successfully added or updated into the DB.
+func (r repository) SetOrUpdateUser(ctx context.Context, logger log.Logger, ue entity.User, userExistCheck bool) (bool, error) {
 	if !userExistCheck {
 		// Checking if an user with username ue.username exists in the DB
 		available, dberr := r.HasUser(ctx, logger, ue.Username)
 		if dberr != nil {
-			// Issues in Exists()
+			// Issues in HasUser()
 			return false, dberr
 		} else if available {
 			return false, errors.BadRequest("User already exists")
 		}
 	}
-	// Add the user into the DB
+	// Transaction to set user data
 	key := "user:" + ue.Username
-	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
-		if !setProfPicOnly {
-			client.HSet(ctx, key, "username", ue.Username)
-			client.HSet(ctx, key, "full_name", ue.FullName)
-			client.HSet(ctx, key, "password", ue.Password)
+	txferr := func(key string) error {
+		txf := func(tx *redis.Tx) error {
+			// Operation is commited only if the watched keys remain unchanged
+			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
+				client.HSet(ctx, key, "username", ue.Username)
+				client.HSet(ctx, key, "full_name", ue.FullName)
+				client.HSet(ctx, key, "password", ue.Password)
+				client.HSet(ctx, key, "user_profile_pic", ue.ProfilePic)
+				return nil
+			})
+			return dberr
 		}
-		client.HSet(ctx, key, "user_profile_pic", ue.ProfilePic)
-		return nil
-	}); dberr != nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in user.Set")
+		for i := 0; i < r.db.GetMaxRetries(); i++ {
+			dberr := r.db.Client().Watch(ctx, txf, key)
+			if dberr == nil {
+				return nil
+			} else if dberr == redis.TxFailedErr {
+				// Optimistic lock lost. Retry.
+				continue
+			}
+			// Return any other error.
+			return dberr
+		}
+		return errors.New("increment reached maximum number of retries")
+	}(key)
+	if txferr != nil {
+		logger.WithCtx(ctx).Error().Err(txferr).Msg("Error occured in SetUser transaction")
 		return false, errors.InternalServerError("")
 	}
+
 	// Add user to user:index for faster searches
 	_, dberr := r.db.Client().SAdd(ctx, "user:index", ue.Username).Result()
 	if dberr != nil {

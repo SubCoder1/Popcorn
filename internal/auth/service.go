@@ -260,14 +260,14 @@ func (s service) generateJWT(ctx context.Context, claims jwt.Claims, signingKey 
 
 // Helper to create and return jwtData for an user with userID passed as param.
 func (s service) createToken(ctx context.Context, username string) (*JWTdata, error) {
-	jd := &JWTdata{}
+	jd := &JWTdata{
+		Username:        username,
+		AccessTokenUUID: uuid.NewString(),
+		AccTokenExp:     time.Now().Add(time.Hour * 4).Unix(),
+		RefTokenUUID:    uuid.NewString(),
+		RefTokenExp:     time.Now().Add(time.Hour * 24 * 7).Unix(),
+	}
 	var jwterr error
-
-	jd.Username = username
-	jd.AccessTokenUUID = uuid.NewString()
-	jd.AccTokenExp = time.Now().Add(time.Hour * 4).Unix()
-	jd.RefTokenUUID = uuid.NewString()
-	jd.RefTokenExp = time.Now().Add(time.Hour * 24 * 7).Unix()
 
 	// Generate AccessToken using above data as claims
 	// Pass AccessTokenSigningKey fetched from env to service

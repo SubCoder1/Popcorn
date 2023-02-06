@@ -36,14 +36,15 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 		tokenclaims, ok := vrftoken.Claims.(jwt.MapClaims)
 		if !ok {
 			// Type assertion error
-			gctx.AbortWithStatus(http.StatusInternalServerError)
+			logger.WithCtx(gctx).Error().Msg("Type assertion error during asserting jwt.Claims to jwt.MapClaims in AuthMiddleware")
+			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		tokenUUID, ok := tokenclaims[tokenType+"_uuid"]
+		tokenUUID, ok := tokenclaims[tokenType+"_uuid"].(string)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in AuthMiddleware")
-			gctx.AbortWithStatus(http.StatusInternalServerError)
+			logger.WithCtx(gctx).Error().Msg("Type assertion error during asserting jwt.MapClaims to string in AuthMiddleware")
+			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 		// Successfully saved UserID is stored in float64 format even though type uint64 is passed during signing
@@ -51,11 +52,12 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 		username, ok := tokenclaims["username"].(string)
 		if !ok {
 			// Type assertion error
-			gctx.AbortWithStatus(http.StatusInternalServerError)
+			logger.WithCtx(gctx).Error().Msg("Type assertion error during asserting jwt.MapClaims to string in AuthMiddleware")
+			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 		// Verify if TokenUUID:UserID is available in DB
-		valid, dberr := authRepo.HasToken(gctx, logger, tokenUUID.(string), username)
+		valid, dberr := authRepo.HasToken(gctx, logger, tokenUUID, username)
 		if dberr != nil {
 			// Error in TokenExists
 			gctx.AbortWithStatus(http.StatusInternalServerError)
@@ -67,7 +69,7 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 		}
 		// In case of tokenType = "refresh_token", delete the previous refresh_token first
 		if tokenType == "refresh_token" {
-			dberr = authRepo.DelToken(gctx, logger, tokenUUID.(string))
+			dberr = authRepo.DelToken(gctx, logger, tokenUUID)
 			if dberr != nil {
 				// Error in DelToken
 				err, ok := dberr.(errors.ErrorResponse)
@@ -85,19 +87,7 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 		gctx.Set("Username", username)
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
-			gctx.Set("access_token", tokenUUID.(string))
-		}
-		gctx.Next()
-	}
-}
-
-// Mock authentication middleware used to bypass auth during tests.
-func MockAuthMiddleware(logger log.Logger, tokenType string) gin.HandlerFunc {
-	return func(gctx *gin.Context) {
-		token := FetchTokenFromCookie(gctx, logger, tokenType)
-		if token == "" {
-			gctx.AbortWithStatus(http.StatusInternalServerError)
-			return
+			gctx.Set("access_token", tokenUUID)
 		}
 		gctx.Next()
 	}
@@ -126,7 +116,6 @@ func parseIntoJWT(gctx *gin.Context, logger log.Logger, secret string, token str
 		// Check the signing method
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			err := errors.New(fmt.Sprintf("Unexpected signing method found: %s", t.Header["alg"]))
-			logger.WithCtx(gctx).Error().Err(err)
 			return nil, err
 		}
 		return []byte(secret), nil

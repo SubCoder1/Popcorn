@@ -12,9 +12,9 @@ load-dev-env:
     include config/dev.env
     export
 
-# This target loads test enviroment variables via test.conf.
+# This target loads test environment variables via test.conf.
 load-test-env:
-	@echo "Loading test env"
+	@echo "Loading test.env"
     include config/test.env
     export
 

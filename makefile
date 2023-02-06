@@ -15,7 +15,7 @@ load-dev-env:
 # This target loads test environment variables via test.conf.
 load-test-env:
 	@echo "Loading test.env"
-    include config/test.env
+	include config/test.env
     export
 
 # This target starts db in development environment.

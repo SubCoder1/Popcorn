@@ -197,7 +197,7 @@ func TestLogin(t *testing.T) {
 
 func TestLogout(t *testing.T) {
 	// Running a successful register sub-test to get access_token & refresh_token
-	// These 2 tokens will be useful to test logout
+	// access_token will be useful to test logout
 	var response test.APIResponse
 	t.Run("TestRegisterUserForLogout", func(t *testing.T) {
 		// Convert request.Body into bytes to add in NewRequest
@@ -208,7 +208,7 @@ func TestLogout(t *testing.T) {
 		}{
 			Username: "me_Bill..Weber..23",
 			FullName: "Bill Weber",
-			Password: "popcornarnab1",
+			Password: "popcorn123",
 		}
 		body, mrserr := json.Marshal(data)
 		if mrserr != nil {
@@ -262,7 +262,7 @@ func TestLogout(t *testing.T) {
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	t.Run("TestLogoutWithInvalidHeaders", func(t *testing.T) {
+	t.Run("TestLogoutWithInvalidToken", func(t *testing.T) {
 		request := test.RequestAPITest{
 			Method:       "POST",
 			Path:         "/api/auth/logout",
@@ -283,6 +283,126 @@ func TestLogout(t *testing.T) {
 			WantResponse: []int{200},
 			Header:       test.MockHeader(),
 			Cookie:       response.Cookie,
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+}
+
+func TestRefreshToken(t *testing.T) {
+	// Running a successful register sub-test to get access_token & refresh_token
+	// refresh_token will be useful to test refresh_token
+	var initialResponse test.APIResponse
+	t.Run("TestRegisterUserForRefreshToken", func(t *testing.T) {
+		// Convert request.Body into bytes to add in NewRequest
+		data := struct {
+			Username interface{} `json:"username,omitempty"`
+			FullName interface{} `json:"full_name,omitempty"`
+			Password interface{} `json:"password,omitempty"`
+		}{
+			Username: "me_Susan_Koerner..23",
+			FullName: "Susan Koerner",
+			Password: "popcorn123",
+		}
+		body, mrserr := json.Marshal(data)
+		if mrserr != nil {
+			logger.Error().Err(mrserr).Msg("Couldn't marshall authtest struct into json in TestRegister()")
+			t.Fatal()
+		}
+
+		request := test.RequestAPITest{
+			Method:       "POST",
+			Path:         "/api/auth/register",
+			Body:         bytes.NewReader(body),
+			WantResponse: testdata.Register["TestUserSuccessOrDuplicateUser1"].WantResponse,
+			Header:       test.MockHeader(),
+			Cookie:       []*http.Cookie{},
+		}
+		// Save the response as we need the auth token cookie
+		initialResponse = test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+	// Run a refresh_token sub-test with token cookies not set, expected 401 - "Cookie not present"
+	t.Run("TestRefreshTokenWithoutSettingToken", func(t *testing.T) {
+		request := test.RequestAPITest{
+			Method:       "POST",
+			Path:         "/api/auth/refresh_token",
+			Body:         bytes.NewReader([]byte{}),
+			WantResponse: []int{401},
+			Header:       test.MockHeader(),
+			Cookie:       []*http.Cookie{},
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+
+	// Run a refresh_token sub-test with invalid token cookies, expected 401
+	mockClaim := &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 4)),
+		Issuer:    "Test",
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Subject:   "Authentication",
+	}
+	mockToken := jwt.NewWithClaims(jwt.SigningMethodHS256, mockClaim)
+	access_token, _ := mockToken.SignedString([]byte("MockAccessSecret"))
+	var domain string = os.Getenv("SRV_ADDR")
+	cookie := http.Cookie{
+		Name:     "access_token",
+		Value:    access_token,
+		Expires:  time.Now().Add(time.Hour * 4),
+		MaxAge:   (4 * 60) * 60,
+		Domain:   domain,
+		Path:     "/api",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	}
+	t.Run("TestRefreshTokenWithInvalidToken", func(t *testing.T) {
+		request := test.RequestAPITest{
+			Method:       "POST",
+			Path:         "/api/auth/refresh_token",
+			Body:         bytes.NewReader([]byte{}),
+			WantResponse: []int{401},
+			Header:       test.MockHeader(),
+			Cookie:       []*http.Cookie{&cookie},
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+
+	// Run a refresh_token sub-test with valid token cookies, expected 200
+	// Save the new response with fresh access_token and refresh_token
+	var freshResponse test.APIResponse
+	t.Run("TestRefreshWithValidToken", func(t *testing.T) {
+		request := test.RequestAPITest{
+			Method:       "POST",
+			Path:         "/api/auth/refresh_token",
+			Body:         bytes.NewReader([]byte{}),
+			WantResponse: []int{200},
+			Header:       test.MockHeader(),
+			Cookie:       initialResponse.Cookie,
+		}
+		freshResponse = test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+
+	// Validate the old token, expected 401
+	t.Run("TestValidateInitialToken", func(t *testing.T) {
+		request := test.RequestAPITest{
+			Method:       "GET",
+			Path:         "/api/auth/validate_token",
+			Body:         bytes.NewReader([]byte{}),
+			WantResponse: []int{401},
+			Header:       test.MockHeader(),
+			Cookie:       initialResponse.Cookie,
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	})
+
+	// Validate the refreshed token, expected 200
+	t.Run("TestValidateRefreshedToken", func(t *testing.T) {
+		request := test.RequestAPITest{
+			Method:       "GET",
+			Path:         "/api/auth/validate_token",
+			Body:         bytes.NewReader([]byte{}),
+			WantResponse: []int{200},
+			Header:       test.MockHeader(),
+			Cookie:       freshResponse.Cookie,
 		}
 		test.ExecuteAPITest(logger, t, mockRouter, &request)
 	})

@@ -19,7 +19,7 @@ import (
 func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, secret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract token from header
-		token := FetchTokenFromCookie(gctx, logger, tokenType)
+		token := fetchTokenFromCookie(gctx, logger, tokenType)
 		// Parse the token header with secret if the token is valid
 		vrftoken, valerr := parseIntoJWT(gctx, logger, secret, token)
 		if valerr != nil {
@@ -94,7 +94,7 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 }
 
 // Helper to fetch token string from Header.
-func FetchTokenFromCookie(gctx *gin.Context, logger log.Logger, tokenType string) string {
+func fetchTokenFromCookie(gctx *gin.Context, logger log.Logger, tokenType string) string {
 	var token *http.Cookie
 	var err error
 	if tokenType == "access_token" {

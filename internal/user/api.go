@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Registers all of the REST API handlers related to internal package auth onto the gin server.
+// Registers all of the REST API handlers related to internal package user onto the gin server.
 func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
 	userGroup := router.Group("/api/user")
 	{

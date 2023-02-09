@@ -7,11 +7,11 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
-	"Popcorn/pkg/middlewares"
 	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -60,12 +60,8 @@ type AuthTestData struct {
 var testdata *AuthTestData
 
 // Helper to build up a mock router instance for testing Popcorn.
-func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) *gin.Engine {
-	// Initializing the gin test server
-	ginMode := os.Getenv("GIN_MODE")
-	gin.SetMode(ginMode)
-	mockRouter = gin.Default()
-	mockRouter.Use(middlewares.CORSMiddleware("*")) // CORS middleware which allows request from all origin
+func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
+	mockRouter = test.MockRouter()
 	// Mock secret keys to create auth token
 	mockAccSecret, mockRefSecret := "MockAccessSecret", "MockRefreshSecret"
 
@@ -79,8 +75,6 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) *gin.Engine {
 	// Register internal package auth handler
 	authService := NewService(mockAccSecret, mockRefSecret, userRepo, authRepo, logger)
 	APIHandlers(mockRouter, authService, accAuthMiddleware, refAuthMiddleware, logger)
-
-	return mockRouter
 }
 
 // Sets up resources before testing Auth APIs in Popcorn.
@@ -103,8 +97,8 @@ func setup() {
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
 	user.RegisterCustomValidations(ctx, logger)
-	// Mock router instance
-	mockRouter = setupMockRouter(client, logger)
+	// Initializing router
+	setupMockRouter(client, logger)
 	// Read testdata and unmarshall into AuthTest
 	datafilebytes, oserr := os.ReadFile("../../testdata/auth.json")
 	if oserr != nil {
@@ -152,11 +146,13 @@ func TestRegister(t *testing.T) {
 			}
 
 			request := test.RequestAPITest{
-				Method:       "POST",
+				Method:       http.MethodPost,
 				Path:         "/api/auth/register",
 				Body:         bytes.NewReader(body),
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -172,11 +168,13 @@ func TestLogin(t *testing.T) {
 	}
 
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/register",
 		Body:         bytes.NewReader(body),
 		WantResponse: testdata.Register["TestUserSuccessOrDuplicateUser1"].WantResponse,
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 
@@ -193,11 +191,13 @@ func TestLogin(t *testing.T) {
 			}
 
 			request := test.RequestAPITest{
-				Method:       "POST",
+				Method:       http.MethodPost,
 				Path:         "/api/auth/login",
 				Body:         bytes.NewReader(body),
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -207,11 +207,12 @@ func TestLogin(t *testing.T) {
 func TestLogoutWithoutSettingToken(t *testing.T) {
 	// Run a logout sub-test with token cookies not set, expected 401 - "Cookie not present"
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/logout",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -241,11 +242,12 @@ func TestLogoutWithInvalidToken(t *testing.T) {
 	}
 
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/logout",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{&cookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -271,11 +273,12 @@ func TestLogoutSuccess(t *testing.T) {
 	}
 
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/register",
 		Body:         bytes.NewReader(body),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	// Save the response as we need the auth token cookie
@@ -283,11 +286,12 @@ func TestLogoutSuccess(t *testing.T) {
 
 	// Run a logout sub-test with valid token cookies, expected 200
 	request = test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/logout",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       response.Cookie,
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -296,11 +300,12 @@ func TestLogoutSuccess(t *testing.T) {
 func TestRefreshTokenWithoutSettingToken(t *testing.T) {
 	// Run a refresh_token sub-test with token cookies not set, expected 401 - "Cookie not present"
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/refresh_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -329,11 +334,12 @@ func TestRefreshTokenWithInvalidToken(t *testing.T) {
 		SameSite: http.SameSiteNoneMode,
 	}
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/refresh_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{&cookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -359,11 +365,12 @@ func TestRefreshTokenSuccess(t *testing.T) {
 	}
 
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/register",
 		Body:         bytes.NewReader(body),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	// Save the response as we need the auth token cookie
@@ -371,11 +378,12 @@ func TestRefreshTokenSuccess(t *testing.T) {
 
 	// Run a refresh_token sub-test with valid token cookies, expected 200
 	request = test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/refresh_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       initialResponse.Cookie,
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -384,11 +392,12 @@ func TestRefreshTokenSuccess(t *testing.T) {
 func TestValidateTokenWithoutSettingToken(t *testing.T) {
 	// Run a validate_token sub-test with token cookies not set, expected 401 - "Cookie not present"
 	request := test.RequestAPITest{
-		Method:       "GET",
+		Method:       http.MethodGet,
 		Path:         "/api/auth/validate_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -417,11 +426,12 @@ func TestValidateTokenWithInvalidToken(t *testing.T) {
 		SameSite: http.SameSiteNoneMode,
 	}
 	request := test.RequestAPITest{
-		Method:       "GET",
+		Method:       http.MethodGet,
 		Path:         "/api/auth/validate_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusUnauthorized},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{&cookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
@@ -447,11 +457,12 @@ func TestValidateTokenSuccess(t *testing.T) {
 	}
 
 	request := test.RequestAPITest{
-		Method:       "POST",
+		Method:       http.MethodPost,
 		Path:         "/api/auth/register",
 		Body:         bytes.NewReader(body),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
 	}
 	// Save the response as we need the auth token cookie
@@ -459,11 +470,12 @@ func TestValidateTokenSuccess(t *testing.T) {
 
 	// Run a validate_token sub-test with valid token cookies, expected 200
 	request = test.RequestAPITest{
-		Method:       "GET",
+		Method:       http.MethodGet,
 		Path:         "/api/auth/validate_token",
 		Body:         bytes.NewReader([]byte{}),
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
 		Cookie:       initialResponse.Cookie,
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)

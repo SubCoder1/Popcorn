@@ -20,7 +20,7 @@ type Repository interface {
 	// HasUser returns a boolean depending on user's availability.
 	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// SearchGang returns paginated gang data depending on the query.
-	SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch, username string) ([]entity.User, uint64, error)
+	SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch) ([]entity.User, uint64, error)
 }
 
 // repository struct of user Repository.
@@ -124,7 +124,7 @@ func (r repository) HasUser(ctx context.Context, logger log.Logger, username str
 }
 
 // Returns user data matching incoming query in DB.
-func (r repository) SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch, username string) ([]entity.User, uint64, error) {
+func (r repository) SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch) ([]entity.User, uint64, error) {
 	searchBy := query.Username + "*"
 	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "user:index", uint64(query.Cursor), searchBy, 10).Result()
 	if dberr != nil && dberr != redis.Nil {

@@ -52,18 +52,11 @@ func getUser(service Service, logger log.Logger) gin.HandlerFunc {
 // searchUser returns a handler which takes care of user search in Popcorn.
 func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		// Fetch username from context which will be used in searchuser service
-		username, ok := gctx.Value("Username").(string)
-		if !ok {
-			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
-		}
 		var query entity.UserSearch
 		request_username := gctx.DefaultQuery("username", "")
 		request_cursor, converr := strconv.Atoi(gctx.DefaultQuery("cursor", "0"))
-		if converr != nil || request_cursor < 0 || request_cursor > 1000 {
-			// Invalid cursor input
+		if converr != nil || request_cursor < 0 || request_cursor > 1000 || request_username == "" {
+			// Invalid input
 			gctx.Status(http.StatusBadRequest)
 			return
 		}
@@ -71,7 +64,7 @@ func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 		query.Username = request_username
 		query.Cursor = request_cursor
 
-		response, newCursor, err := service.searchuser(gctx, query, username)
+		response, newCursor, err := service.searchuser(gctx, query)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

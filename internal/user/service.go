@@ -16,7 +16,7 @@ type Service interface {
 	// Fetches User Data based on User-ID.
 	getuser(ctx context.Context, username string) (entity.User, error)
 	// Search for an user in Popcorn.
-	searchuser(ctx context.Context, query entity.UserSearch, username string) ([]entity.User, uint64, error)
+	searchuser(ctx context.Context, query entity.UserSearch) ([]entity.User, uint64, error)
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -42,14 +42,14 @@ func (s service) getuser(ctx context.Context, username string) (entity.User, err
 	return user, nil
 }
 
-func (s service) searchuser(ctx context.Context, query entity.UserSearch, username string) ([]entity.User, uint64, error) {
+func (s service) searchuser(ctx context.Context, query entity.UserSearch) ([]entity.User, uint64, error) {
 	// Validate the query data
 	valerr := s.validateUserSearchData(ctx, query)
 	if valerr != nil {
 		// Error occured during validation
 		return []entity.User{}, 0, valerr
 	}
-	return s.userRepo.SearchUser(ctx, s.logger, query, username)
+	return s.userRepo.SearchUser(ctx, s.logger, query)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

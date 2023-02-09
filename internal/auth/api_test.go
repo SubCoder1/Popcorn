@@ -38,7 +38,7 @@ var ctx context.Context = context.Background()
 // Auth testdata structure, helps in unmarshalling testdata/auth.json
 type AuthTestData struct {
 	// User registration testdata
-	Register map[string]struct {
+	Register map[string]*struct {
 		Body *struct {
 			Username interface{} `json:"username,omitempty"`
 			FullName interface{} `json:"full_name,omitempty"`

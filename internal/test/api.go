@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,7 @@ type RequestAPITest struct {
 	Body         *bytes.Reader  // Request Body
 	WantResponse []int          // Expected Response according to request
 	Header       http.Header    // Request headers
+	Parameters   url.Values     // Query parameters
 	Cookie       []*http.Cookie // Request Cookies
 }
 
@@ -46,7 +48,9 @@ func ExecuteAPITest(logger log.Logger, t *testing.T, router *gin.Engine, request
 		t.Error()
 		return APIResponse{}
 	}
+	// Attach headers, cookies & query paramters before calling ServeHTTP
 	req.Header = request.Header
+	req.URL.RawQuery = request.Parameters.Encode()
 	for _, cookie := range request.Cookie {
 		req.AddCookie(cookie)
 	}

@@ -1,0 +1,177 @@
+{
+    "search_user_invalid": {
+        "BlankQuery": {
+            "body": {},
+            "response": [400]
+        },
+        "CursorOutOfBounds1": {
+            "body": {
+                "cursor": ["100001"]
+            },
+            "response": [400]
+        },
+        "CursorOutOfBounds2": {
+            "body": {
+                "cursor": ["-100"]
+            },
+            "response": [400]
+        },
+        "CursorInvalid": {
+            "body": {
+                "cursor": ["abcd"]
+            },
+            "response": [400]
+        },
+        "UsernameInvalid1": {
+            "body": {
+                "username": [""],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "UsernameInvalid2": {
+            "body": {
+                "username": ["##$%"],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "UsernameInvalid3": {
+            "body": {
+                "username": [" "],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        }
+    },
+    "search_user_valid": {
+        "UsernameValid1": {
+            "body": {
+                "username": ["arn"],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "UsernameValid2": {
+            "body": {
+                "username": ["arn_."],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "CursorEmpty": {
+            "body": {
+                "username": ["arn"]
+            },
+            "response": [200]
+        },
+        "CursorValid1": {
+            "body": {
+                "username": ["arn"],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "CursorValid2": {
+            "body": {
+                "username": ["arn"],
+                "cursor": ["100"]
+            },
+            "response": [200]
+        },
+        "CursorValid3": {
+            "body": {
+                "username": ["arn"],
+                "cursor": ["1000"]
+            },
+            "response": [200]
+        }
+    },
+    "user_list": [
+        {
+            "username": "me.Michale_Daugherty..23",
+            "full_name": "Michale Daugherty",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Sharron_Mcfarland..23",
+            "full_name": "Sharron Mcfarland",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Will_Cohen..23",
+            "full_name": "Will Cohen",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Lacy_Arnold..23",
+            "full_name": "Lacy Arnold",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Nicky_Hansen..23",
+            "full_name": "Nicky Hansen",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Wilford_Donovan..23",
+            "full_name": "Wilford Donovan",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Sammy_Ellis..23",
+            "full_name": "Sammy Ellis",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Pablo_Barnett..23",
+            "full_name": "Pablo Barnett",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Craig_Cobb..23",
+            "full_name": "Craig Cobb",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Tamara_Blevins..23",
+            "full_name": "Tamara Blevins",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Brendan_Barrera..23",
+            "full_name": "Brendan Barrera",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Jessie_Velasquez..23",
+            "full_name": "Jessie Velasquez",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Maria_Patel..23",
+            "full_name": "Maria Patel",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Ty_Schneider..23",
+            "full_name": "Ty Schneider",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Billie_Rivas..23",
+            "full_name": "Billie Rivas",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Roy_Li..23",
+            "full_name": "Roy Li",
+            "password": "popcorn123"
+        },
+        {
+            "username": "me.Lee_Walton..23",
+            "full_name": "Lee Walton",
+            "password": "popcorn123"
+        }
+    ]
+}

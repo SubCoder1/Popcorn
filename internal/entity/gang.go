@@ -7,7 +7,7 @@ package entity
 type Gang struct {
 	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
 	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
-	PassKey        string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),minstringlength(5)"`
+	PassKey        string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
 	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key" valid:"-"`
 	Created        int64  `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
@@ -35,7 +35,7 @@ type GangJoin struct {
 	Admin   string `json:"gang_admin" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~admin:No spaces allowed here"`
 	Name    string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	Key     string `json:"-" valid:"-"`
-	PassKey string `json:"gang_passkey" valid:"required,type(string),minstringlength(5)"`
+	PassKey string `json:"gang_passkey" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
 }
 
 // Used to bind and validate search_gang request.
@@ -60,5 +60,5 @@ type GangExit struct {
 	Member string `json:"member_name" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
 	Name   string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	Key    string `json:"-" valid:"-"`
-	Type   string `json:"-" valid:"in(leave|boot)"` //
+	Type   string `json:"-" valid:"in(leave|boot)"` // leave request from user, boot request from gang admin
 }

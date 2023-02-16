@@ -1,42 +1,42 @@
 {
     "search_user_invalid": {
-        "BlankQuery": {
+        "TestBlankQuery": {
             "body": {},
             "response": [400]
         },
-        "CursorOutOfBounds1": {
+        "TestCursorOutOfBounds1": {
             "body": {
                 "cursor": ["100001"]
             },
             "response": [400]
         },
-        "CursorOutOfBounds2": {
+        "TestCursorOutOfBounds2": {
             "body": {
                 "cursor": ["-100"]
             },
             "response": [400]
         },
-        "CursorInvalid": {
+        "TestCursorInvalid": {
             "body": {
                 "cursor": ["abcd"]
             },
             "response": [400]
         },
-        "UsernameInvalid1": {
+        "TestUsernameInvalid1": {
             "body": {
                 "username": [""],
                 "cursor": ["0"]
             },
             "response": [400]
         },
-        "UsernameInvalid2": {
+        "TestUsernameInvalid2": {
             "body": {
                 "username": ["##$%"],
                 "cursor": ["0"]
             },
             "response": [400]
         },
-        "UsernameInvalid3": {
+        "TestUsernameInvalid3": {
             "body": {
                 "username": [" "],
                 "cursor": ["0"]
@@ -45,41 +45,41 @@
         }
     },
     "search_user_valid": {
-        "UsernameValid1": {
+        "TestUsernameValid1": {
             "body": {
                 "username": ["arn"],
                 "cursor": ["0"]
             },
             "response": [200]
         },
-        "UsernameValid2": {
+        "TestsUsernameValid2": {
             "body": {
                 "username": ["arn_."],
                 "cursor": ["0"]
             },
             "response": [200]
         },
-        "CursorEmpty": {
+        "TestCursorEmpty": {
             "body": {
                 "username": ["arn"]
             },
             "response": [200]
         },
-        "CursorValid1": {
+        "TestCursorValid1": {
             "body": {
                 "username": ["arn"],
                 "cursor": ["0"]
             },
             "response": [200]
         },
-        "CursorValid2": {
+        "TestCursorValid2": {
             "body": {
                 "username": ["arn"],
                 "cursor": ["100"]
             },
             "response": [200]
         },
-        "CursorValid3": {
+        "TestCursorValid3": {
             "body": {
                 "username": ["arn"],
                 "cursor": ["1000"]

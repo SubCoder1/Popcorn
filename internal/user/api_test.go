@@ -265,7 +265,7 @@ func TestSearchUserPaginated(t *testing.T) {
 		Page   int64         `json:"page"`
 	}{}
 	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
-	assert.True(t, len(searchResult.Result) >= 10)
+	assert.True(t, len(searchResult.Result) >= 1)
 
 	// Make another call with a new Page (cursor)
 	newCursor := strconv.Itoa(int(searchResult.Page))

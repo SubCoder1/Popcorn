@@ -33,28 +33,48 @@ var mockRouter *gin.Engine
 // Global instance of Db instance to be used during auth API testing.
 var client *db.RedisDB
 
+// Global instance of user Repository to be used during auth API testing.
+var userRepo user.Repository
+
 // Global context
 var ctx context.Context = context.Background()
 
 // Auth testdata structure, helps in unmarshalling testdata/auth.json
 type AuthTestData struct {
-	// User registration testdata
-	Register map[string]*struct {
+	// User registration invalid testdata
+	RegisterInvalid map[string]*struct {
 		Body *struct {
 			Username interface{} `json:"username,omitempty"`
 			FullName interface{} `json:"full_name,omitempty"`
 			Password interface{} `json:"password,omitempty"`
 		} `json:"body,omitempty"`
 		WantResponse []int `json:"response"`
-	} `json:"register"`
-	// User login testdata
-	Login map[string]struct {
+	} `json:"register_invalid"`
+	// User registration valid testdata
+	RegisterValid map[string]*struct {
+		Body *struct {
+			Username interface{} `json:"username,omitempty"`
+			FullName interface{} `json:"full_name,omitempty"`
+			Password interface{} `json:"password,omitempty"`
+		} `json:"body,omitempty"`
+		WantResponse []int `json:"response"`
+	} `json:"register_valid"`
+	// User login invalid testdata
+	LoginInvalid map[string]struct {
 		Body *struct {
 			Username interface{} `json:"username,omitempty"`
 			Password interface{} `json:"password,omitempty"`
 		} `json:"body,omitempty"`
 		WantResponse []int `json:"response"`
-	} `json:"login"`
+	} `json:"login_invalid"`
+	// User login valid testdata
+	LoginValid map[string]struct {
+		Body *struct {
+			Username interface{} `json:"username,omitempty"`
+			Password interface{} `json:"password,omitempty"`
+		} `json:"body,omitempty"`
+		WantResponse []int `json:"response"`
+	} `json:"login_valid"`
 }
 
 // AuthTestData struct variable which stores unmarshalled all of the testdata for auth tests.
@@ -68,7 +88,7 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 
 	// Repositories needed by auth APIs and services to work
 	authRepo := NewRepository(dbConnWrp)
-	userRepo := user.NewRepository(dbConnWrp)
+	userRepo = user.NewRepository(dbConnWrp)
 	// Middlewares used by auth APIs
 	accAuthMiddleware := AuthMiddleware(logger, authRepo, "access_token", mockAccSecret)
 	refAuthMiddleware := AuthMiddleware(logger, authRepo, "refresh_token", mockRefSecret)
@@ -134,9 +154,9 @@ func TestMain(m *testing.M) {
 	os.Exit(testExitCode)
 }
 
-func TestRegister(t *testing.T) {
+func TestRegisterInvalid(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/auth.json -> register
-	for name, data := range testdata.Register {
+	for name, data := range testdata.RegisterInvalid {
 		data := data // Fixes "loop variable request captured by func literal" issue
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -161,9 +181,63 @@ func TestRegister(t *testing.T) {
 	}
 }
 
-func TestLogin(t *testing.T) {
+func TestRegisterValid(t *testing.T) {
+	// Loop through every test scenarios defined in testdata/auth.json -> register
+	for name, data := range testdata.RegisterValid {
+		data := data // Fixes "loop variable request captured by func literal" issue
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			// Convert request.Body into bytes to add in NewRequest
+			body, mrserr := json.Marshal(data.Body)
+			if mrserr != nil {
+				logger.Error().Err(mrserr).Msg("Couldn't marshall authtest struct into json in TestRegister()")
+				t.Fatal()
+			}
+
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/auth/register",
+				Body:         bytes.NewReader(body),
+				WantResponse: data.WantResponse,
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
+}
+
+func TestLoginInvalid(t *testing.T) {
+	// Loop through every test scenarios defined in testdata/auth.json -> login
+	for name, data := range testdata.LoginInvalid {
+		data := data // Fixes "loop variable request captured by func literal" issue
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			// Convert request.Body into bytes to add in NewRequest
+			body, mrserr := json.Marshal(data.Body)
+			if mrserr != nil {
+				logger.Error().Err(mrserr).Msg("Couldn't marshall authtest struct into json in TestLogin()")
+				t.Fatal()
+			}
+
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/auth/login",
+				Body:         bytes.NewReader(body),
+				WantResponse: data.WantResponse,
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
+}
+
+func TestLoginValid(t *testing.T) {
 	// Running a API test call to register an user first to test successful or Wrong password cases
-	body, mrserr := json.Marshal(testdata.Register["TestUserSuccessOrDuplicateUser1"].Body)
+	body, mrserr := json.Marshal(testdata.RegisterValid["TestUserSuccessOrDuplicateUser1"].Body)
 	if mrserr != nil {
 		logger.Error().Err(mrserr).Msg("Couldn't marshall authtest struct into json in TestRegister()")
 		t.Fatal()
@@ -173,7 +247,7 @@ func TestLogin(t *testing.T) {
 		Method:       http.MethodPost,
 		Path:         "/api/auth/register",
 		Body:         bytes.NewReader(body),
-		WantResponse: testdata.Register["TestUserSuccessOrDuplicateUser1"].WantResponse,
+		WantResponse: testdata.RegisterValid["TestUserSuccessOrDuplicateUser1"].WantResponse,
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{},
@@ -181,10 +255,10 @@ func TestLogin(t *testing.T) {
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 
 	// Loop through every test scenarios defined in testdata/auth.json -> login
-	for name, data := range testdata.Login {
+	for name, data := range testdata.LoginValid {
 		data := data // Fixes "loop variable request captured by func literal" issue
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 			// Convert request.Body into bytes to add in NewRequest
 			body, mrserr := json.Marshal(data.Body)
 			if mrserr != nil {

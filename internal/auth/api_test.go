@@ -7,6 +7,7 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
+	"Popcorn/pkg/validations"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -96,6 +97,7 @@ func setup() {
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
+	validations.RegisterCustomValidations(ctx, logger)
 	user.RegisterCustomValidations(ctx, logger)
 	// Initializing router
 	setupMockRouter(client, logger)

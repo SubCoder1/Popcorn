@@ -25,7 +25,7 @@ type Service interface {
 	// Get list of gang members of user created gang in Popcorn.
 	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
-	joingang(ctx context.Context, username string, gangKey entity.GangJoin) error
+	joingang(ctx context.Context, username string, joinGangData entity.GangJoin) error
 	// Search for a gang
 	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 	// Send gang invite to an user
@@ -152,22 +152,22 @@ func (s service) getgangmembers(ctx context.Context, username string) ([]entity.
 	return members, nil
 }
 
-func (s service) joingang(ctx context.Context, username string, gangKey entity.GangJoin) error {
-	valerr := s.validateGangData(ctx, gangKey)
+func (s service) joingang(ctx context.Context, username string, joinGangData entity.GangJoin) error {
+	valerr := s.validateGangData(ctx, joinGangData)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
 	}
 	// Fetch passkey hash for the gang and match with incoming one
-	gangPassKeyHash, dberr := s.gangRepo.GetGangPassKey(ctx, s.logger, gangKey)
+	gangPassKeyHash, dberr := s.gangRepo.GetGangPassKey(ctx, s.logger, joinGangData)
 	if dberr != nil {
 		// Error occured in GetGangPassKey()
 		return dberr
-	} else if !s.verifyPassKeyHash(ctx, gangKey.PassKey, gangPassKeyHash) {
+	} else if !s.verifyPassKeyHash(ctx, joinGangData.PassKey, gangPassKeyHash) {
 		// Passkey didn't match
 		return errors.Unauthorized("PassKey didn't match")
 	}
-	dberr = s.gangRepo.JoinGang(ctx, s.logger, gangKey, username)
+	dberr = s.gangRepo.JoinGang(ctx, s.logger, joinGangData, username)
 	if dberr != nil {
 		// Error occured in JoinGang()
 		return dberr

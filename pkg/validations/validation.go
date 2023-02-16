@@ -4,8 +4,8 @@
 package validations
 
 import (
+	"Popcorn/pkg/log"
 	"context"
-	"log"
 
 	"github.com/asaskevich/govalidator"
 )

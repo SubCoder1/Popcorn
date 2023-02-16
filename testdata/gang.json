@@ -1,0 +1,198 @@
+{
+    "create_gang_invalid": {
+        "TestBlankGangName": {
+            "body": {
+                "gang_name": "",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameOutOfBounds1": {
+            "body": {
+                "gang_name": "Abcd",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameOutOfBounds2": {
+            "body": {
+                "gang_name": "aaaabbbbccccdddasrqweqweqwhekwrnewlkndlksnanasenrlkqwejqweoijwqn12312432234_324wsnsaewq2q2e",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameOnlyWhiteSpaces": {
+            "body": {
+                "gang_name": "       ",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameInvalidSymbol": {
+            "body": {
+                "gang_name": "My_New_gang123.#$",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameWeirdCharacters": {
+            "body": {
+                "gang_name": "My_New_Gangß",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangNameAsNumber": {
+            "body": {
+                "gang_name": 12345,
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [422]
+        },
+        "TestGangPassKeyLowerBound": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "1234",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangPassKeyUpperBound": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "mygang_123RKAAZCAGJRQVQPUWUSTOIKALFIFZDFJNHVSMYXJOOMZBJJHIPNHHHLEUYHKHPDEWUWYXNMFLRHTDSWRXDHIILBOWKLQXGNYTNWXQAFPJHDCYFSMAFDGKBCMBNKFAQLWSTPHPYYCZPZJSPPTTAOPSGEKILXACFSDZHCTUBAHRRPULAIAZQKSPSBSQMKYUXAJTZATSUIGNBLNLYLJOWRSBSRYSOFZGETJMCBKRLADDOVKOGBPYPSSJSPHPENRPCNSBXDHGANIEZJRWXNCBTFHXXXNFSATDMCNMBESEGKEXARPRCSHELRELCKGADJAPNSGZFTOCEYAOHIHJULDSVKDJKDNZPBFOBDOUBLGLTOGWIVYYPSEFFMDOOKXAQEFNOGBMXOEXSOZZAGOQDRNMKNZFWNJTESZBCBHOSKHGGJQPQNBJDMEXDRLHKXTEVZFRJEPZJKASSCTIRNZIECIWQJENJXXDQELZYUWOGAYWVSUPNKHXGKFPUCNPLERCTAJDLHICPXMHUYBITOOWKUGJEGAZXZUBNQJPUFDRTIBIUTPQLVYIDVEFBURQDNJJOPAGEGXJMIWNXQNHKBRWMACVFYQVSSOOVXGRJJAOTNQCSINFLVWDPPDKJCFKZIJAPYQUNRCMSJSNOOVUQUDNTJHWPKERNHRFQYKITKQTIKBURYGFQIKAEXKIPSJWNGOWAUKUXSUQTUGXNCRZOLWBDJXRCNEIVVNUAZ",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangPassKeyAsNumber": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": 12345,
+                "gang_member_limit": 3
+            },
+            "response": [422]
+        },
+        "TestGangPassKeyWithWhiteSpace": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "1 2 3 4 5",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangPassKeyWithWhiteSpaceOnly": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "      ",
+                "gang_member_limit": 3
+            },
+            "response": [400]
+        },
+        "TestGangMemberLimitOutOfBounds1": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 1
+            },
+            "response": [400]
+        },
+        "TestGangMemberLimitOutOfBounds2": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 11
+            },
+            "response": [400]
+        },
+        "TestGangMemberLimitOutOfBounds3": {
+            "body": {
+                "gang_name": "MyNewGang123",
+                "gang_pass_key": "12345",
+                "gang_member_limit": -9
+            },
+            "response": [422]
+        }
+    },
+    "create_gang_valid": {
+        "TestGangNameLowerBound": {
+            "body": {
+                "gang_name": "mgang123",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangNameUpperBound": {
+            "body": {
+                "gang_name": "MyNewGangThisOneBRUH",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangNameValidSymbol": {
+            "body": {
+                "gang_name": "My_New_Gang1.2.3",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangNameWithWhiteSpace": {
+            "body": {
+                "gang_name": "My New_ Gang",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangPassKeyLowerBound": {
+            "body": {
+                "gang_name": "My New Gang",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangPassKeyUpperBound": {
+            "body": {
+                "gang_name": "My New Gang",
+                "gang_pass_key": "123myMQ_IRSJCUCEISTUPCJITG.GLXLSVZGDXHPMRDRYXEKMMVMTUBULZNZSLRDAJVHTZGCKYIDOLQYSOYUYRNCKJDSRIQCSUQCMMFGGCEDWBFGVXKWPLWXONVOSPTUHUCXLNXSHSLCMNDPBHGJVSONABSVCQDMOTXMVFYYXXYMUVFMDRJSWPXWZRDLJVCGOAIVRSMKWNKRWGELDHGCAWHBOJGOTAICQCPKIHNYRNWHRWLVKKPVBCNQWSPQWCDFBDYTUFXLUPUTRWECAVMFWPXALXEHJWMSFOJVIACIDFJCTKLNWKMWVAVXFPYTEWCFQZVZDYOXYXTEBQGVEEAOKRLIOESIGLKLUGFFXGTHNLNIHILLBFWRHSEOVVNGOVBQRODJFWCPZHDNVEAUVJSIFAUHOCCWOAVADOPKFWXGKTUWSPGDBMCCGVPDVTRZNTCETGLHHRCUOYPMXVULHEFRWIUIMJYNVGSAUOYRLQJUVWZUDOCBKHISZDILFHVVTYKOKGMTJBKWIEBURLTPFUGUIYXCRZABYNLVAGUKOARQGWNKWHCBWSSYJBJINVBUVVHJVVMHMAGDLDDHFARCWEJUEXPGRDEYYRJSMFARJEINPEADANPUEZJDCHBVKCAFOZLTWGCYZQLNFCWRZRUBTGSBOLLULQDFHPUJFBLJREZGFZLBMCSFMIIVRYKNEIIXAUTRVBTLWSTEXQDACQCZBACBEHWYZAR",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangPassKeyValidSymbol": {
+            "body": {
+                "gang_name": "My_New_Gang1.2.3",
+                "gang_pass_key": "passkey1_2.3",
+                "gang_member_limit": 3
+            },
+            "response": [200,400]
+        },
+        "TestGangMemberLimitLowerBound": {
+            "body": {
+                "gang_name": "My New Gang",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 2
+            },
+            "response": [200,400]
+        },
+        "TestGangMemberLimitUpperBound": {
+            "body": {
+                "gang_name": "My New Gang",
+                "gang_pass_key": "12345",
+                "gang_member_limit": 10
+            },
+            "response": [200,400]
+        }
+    }
+}

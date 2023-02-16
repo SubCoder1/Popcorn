@@ -12,6 +12,7 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"Popcorn/pkg/middlewares"
+	"Popcorn/pkg/validations"
 	"context"
 	"fmt"
 	"net/http"
@@ -52,6 +53,7 @@ func main() {
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
+	validations.RegisterCustomValidations(ctx, logger)
 	user.RegisterCustomValidations(ctx, logger)
 	gang.RegisterCustomValidations(ctx, logger)
 

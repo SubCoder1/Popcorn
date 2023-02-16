@@ -20,8 +20,10 @@ import (
 type Repository interface {
 	// HasGang returns a boolean depending on gang's availability.
 	HasGang(ctx context.Context, logger log.Logger, gangKey string, gangName string) (bool, error)
-	// SetGang adds the gang data into the DB.
-	SetGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error)
+	// SetOrUpdateGang adds or updates the gang data into the DB.
+	SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error)
+	// DelGang deletes the gang data from the DB.
+	DelGang(ctx context.Context, logger log.Logger, admin string) error
 	// GetGang fetches created gang data from DB.
 	GetGang(ctx context.Context, logger log.Logger, admin string, username string, existCheck bool) (entity.GangResponse, error)
 	// GetGangPassKey fetches PassKey Hash for a gang, should be used before JoinGang.
@@ -84,7 +86,7 @@ func (r repository) HasGang(ctx context.Context, logger log.Logger, gangKey stri
 }
 
 // Returns true if gang got successfully added into the DB.
-func (r repository) SetGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error) {
+func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error) {
 	// Checking if an gang with admin gang.Admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+gang.Admin, "")
 	if dberr != nil {
@@ -94,17 +96,35 @@ func (r repository) SetGang(ctx context.Context, logger log.Logger, gang *entity
 		return false, errors.BadRequest("Gang already exists")
 	}
 	gangKey := "gang:" + gang.Admin
-	if _, dberr := r.db.Client().Pipelined(ctx, func(client redis.Pipeliner) error {
-		client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
-		client.HSet(ctx, gangKey, "gang_name", gang.Name)
-		client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
-		client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
-		client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
-		client.HSet(ctx, gangKey, "gang_created", gang.Created)
-		return nil
-	}); dberr != nil {
-		// Error during interacting with DB
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Pipelined() in gang.SetGang")
+	txferr := func(key string) error {
+		txf := func(tx *redis.Tx) error {
+			// Operation is commited only if the watched keys remain unchanged
+			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
+				client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
+				client.HSet(ctx, gangKey, "gang_name", gang.Name)
+				client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
+				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
+				client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
+				client.HSet(ctx, gangKey, "gang_created", gang.Created)
+				return nil
+			})
+			return dberr
+		}
+		for i := 0; i < r.db.GetMaxRetries(); i++ {
+			dberr := r.db.Client().Watch(ctx, txf, key)
+			if dberr == nil {
+				return nil
+			} else if dberr == redis.TxFailedErr {
+				// Optimistic lock lost. Retry.
+				continue
+			}
+			// Return any other error.
+			return dberr
+		}
+		return errors.New("increment reached maximum number of retries")
+	}(gangKey)
+	if txferr != nil {
+		logger.WithCtx(ctx).Error().Err(txferr).Msg("Error occured in SetUser transaction")
 		return false, errors.InternalServerError("")
 	}
 	// Set gang:index -> gang:<gang.Admin>:<gang.Name> as index for quicker search
@@ -122,6 +142,39 @@ func (r repository) SetGang(ctx context.Context, logger log.Logger, gang *entity
 		return false, err
 	}
 	return true, nil
+}
+
+// Returns nil if gang got successfully deleted from the DB.
+func (r repository) DelGang(ctx context.Context, logger log.Logger, admin string) error {
+	// Required gang metadata needed to delete related gang data from the DB
+	gangData := struct {
+		Key            string
+		Name           string `json:"gang_name" redis:"gang_name,omitempty"`
+		MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key"`
+	}{Key: "gang:" + admin}
+	dberr := r.db.Client().HGetAll(ctx, gangData.Key).Scan(&gangData)
+	if dberr != nil && dberr != redis.Nil {
+		// Issues in HGet()
+		return dberr
+	} else if dberr == redis.Nil {
+		// Maybe expired or doesn't exist at all
+		return errors.BadRequest("Gang doesn't exist")
+	}
+	// Delete gang index from DB
+	r.delGangIndex(ctx, logger, fmt.Sprintf("gang:%s:%s", admin, gangData.Name))
+	// Delete gang member from DB
+	dberr = r.db.Client().Del(ctx, gangData.MembersListKey).Err()
+	if dberr != nil && dberr != redis.Nil {
+		// Issues in Del()
+		return dberr
+	}
+	// Delete gang data from DB
+	dberr = r.db.Client().Del(ctx, gangData.Key).Err()
+	if dberr != nil && dberr != redis.Nil {
+		// Issues in Del()
+		return dberr
+	}
+	return nil
 }
 
 // Returns nil if gang member got successfully added into the DB.
@@ -148,8 +201,6 @@ func (r repository) DelGangMember(ctx context.Context, logger log.Logger, gangMe
 
 // Returns gang data if user has created a gang.
 func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey string, username string, existCheck bool) (entity.GangResponse, error) {
-	var gangResp entity.GangResponse
-
 	if !existCheck {
 		// Checking if gangKey exists in the DB
 		available, dberr := r.HasGang(ctx, logger, gangKey, "")
@@ -161,6 +212,7 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 		}
 	}
 
+	var gangResp entity.GangResponse
 	if dberr := r.db.Client().HGetAll(ctx, gangKey).Scan(&gangResp); dberr != nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.HGetAll() in gang.GetGang")
@@ -192,7 +244,7 @@ func (r repository) GetGangPassKey(ctx context.Context, logger log.Logger, gangK
 		return "", dberr
 	} else if !available {
 		// Delete index as this request was made through search or invite
-		go r.delGangIndex(ctx, logger, gangKey.Key+":"+gangKey.Name)
+		r.delGangIndex(ctx, logger, gangKey.Key+":"+gangKey.Name)
 		return "", errors.BadRequest("Gang doesn't exist")
 	}
 	// Fetch Gang PassKey hash
@@ -264,7 +316,7 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 		return dberr
 	} else if !available {
 		// Delete index as this request was made through search or invite
-		go r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
+		r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
 		return errors.BadRequest("Gang doesn't exist")
 	}
 
@@ -319,7 +371,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 	gangLimitStr, dberr := r.db.Client().HGet(ctx, join.Key, "gang_member_limit").Result()
 	if dberr != nil {
 		if dberr == redis.Nil || len(gangLimitStr) == 0 {
-			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error during interacting with DB
@@ -336,7 +388,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 	gangMemberKey, dberr := r.db.Client().HGet(ctx, join.Key, "gang_members_key").Result()
 	if dberr != nil {
 		if dberr == redis.Nil || len(gangMemberKey) == 0 {
-			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error during interacting with DB
@@ -346,7 +398,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 	currMembersCount, dberr := r.db.Client().SCard(ctx, gangMemberKey).Result()
 	if dberr != nil {
 		if dberr == redis.Nil || currMembersCount == 0 {
-			go r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error interacting with DB
@@ -414,7 +466,7 @@ func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity
 		} else if gang.Admin == "" {
 			// Empty gang, must be expired
 			// Remove from index and continue
-			go r.delGangIndex(ctx, logger, gangKey+":"+gangName)
+			r.delGangIndex(ctx, logger, gangKey+":"+gangName)
 		}
 		searchResult = append(searchResult, gang)
 	}

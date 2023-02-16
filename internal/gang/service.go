@@ -81,8 +81,14 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	gang.PassKey = hashedgangpk
 
 	// Save gang data in DB
-	_, dberr = s.gangRepo.SetGang(ctx, s.logger, gang)
+	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang)
 	if dberr != nil {
+		err, ok := dberr.(errors.ErrorResponse)
+		if ok && err.StatusCode() == 400 {
+			// User cannot create more than 1 gang at a time
+			valerr := errors.New("gang:User cannot create more than 1 gang at a time")
+			return errors.GenerateValidationErrorResponse([]error{valerr})
+		}
 		return dberr
 	}
 

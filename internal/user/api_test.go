@@ -179,7 +179,7 @@ func TestSearchUserInvalidSearch(t *testing.T) {
 		Value:    "TestUser123",
 		HttpOnly: true,
 	}
-	// Make a call to search_user API with blank username, expected 400
+	// Loop through every test scenarios defined in testdata/user.json -> search_user_invalid
 	for subTestName, subTestBody := range testdata.SearchUserInvalid {
 		subTestBody := subTestBody
 		t.Run(subTestName, func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestSearchUserValidSearch(t *testing.T) {
 		Value:    "TestUser123",
 		HttpOnly: true,
 	}
-	// Make a call to search_user API with blank username, expected 400
+	// Loop through every test scenarios defined in testdata/user.json -> search_user_valid
 	for subTestName, subTestBody := range testdata.SearchUserValid {
 		subTestBody := subTestBody
 		t.Run(subTestName, func(t *testing.T) {

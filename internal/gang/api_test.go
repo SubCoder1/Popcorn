@@ -20,6 +20,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/stretchr/testify/assert"
 )
 
 // Global instance of log.Logger to be used during gang API testing.
@@ -49,6 +50,7 @@ type GangTestData struct {
 		} `json:"body,omitempty"`
 		WantResponse []int `json:"response"`
 	} `json:"create_gang_invalid"`
+
 	CreateGangValid map[string]*struct {
 		Body *struct {
 			Name    interface{} `json:"gang_name,omitempty"`
@@ -57,10 +59,36 @@ type GangTestData struct {
 		} `json:"body,omitempty"`
 		WantResponse []int `json:"response"`
 	} `json:"create_gang_valid"`
+
+	JoinGangInvalid map[string]*struct {
+		Body *struct {
+			Admin   interface{} `json:"gang_admin,omitempty"`
+			Name    interface{} `json:"gang_name,omitempty"`
+			PassKey interface{} `json:"gang_pass_key,omitempty"`
+		} `json:"body,omitempty"`
+		WantResponse []int `json:"response"`
+	} `json:"join_gang_invalid"`
+
+	JoinGangValid map[string]*struct {
+		Body *struct {
+			Admin   interface{} `json:"gang_admin,omitempty"`
+			Name    interface{} `json:"gang_name,omitempty"`
+			PassKey interface{} `json:"gang_pass_key,omitempty"`
+		} `json:"body,omitempty"`
+		WantResponse []int `json:"response"`
+	} `json:"join_gang_valid"`
+
+	GangList []entity.Gang `json:"gang_list"`
 }
 
 // GangTestData struct variable which stores unmarshalled all of the testdata for gang tests.
 var testdata *GangTestData
+
+// TestUser account to be used during gang API tests
+var testUser entity.User
+
+// TestUser Cookie to be passed during tests
+var userCookie http.Cookie
 
 // Helper to build up a mock router instance for testing Popcorn.
 func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
@@ -112,6 +140,25 @@ func setup() {
 		logger.Fatal().Err(mrsherr).Msg("Couldn't unmarshall into UserTestData, Aborting test run.")
 	}
 	logger.Info().Msg("Test resources setup successful.")
+	// Setup a test user account to be used for gang API testing
+	// Use user.SetOrUpdate repository method to set user data
+	testUser = entity.User{
+		Username: "me_Marta_Beard..23",
+		FullName: "Marta Beard",
+		Password: "popcorn123",
+	}
+	testUser.SelectProfilePic()
+	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
+	if dberr != nil {
+		// Issues in SetOrUpdateUser()
+		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
+	}
+	// User Cookie to be passed during tests
+	userCookie = http.Cookie{
+		Name:     "user",
+		Value:    "me_Marta_Beard..23",
+		HttpOnly: true,
+	}
 }
 
 // Cleans up the resources built during execution of setup()
@@ -134,23 +181,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateGangInvalid(t *testing.T) {
-	// Use user.SetOrUpdate repository method to set user data
-	testUser := entity.User{
-		Username: "me_Marta_Beard..23",
-		FullName: "Marta Beard",
-		Password: "popcorn123",
-	}
-	testUser.SelectProfilePic()
-	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
-	if dberr != nil {
-		// Issues in SetOrUpdateUser()
-		t.Fail()
-	}
-	userCookie := http.Cookie{
-		Name:     "user",
-		Value:    "me_Marta_Beard..23",
-		HttpOnly: true,
-	}
 	// Loop through every test scenarios defined in testdata/gang.json -> create_gang_invalid
 	for name, data := range testdata.CreateGangInvalid {
 		data := data
@@ -177,23 +207,6 @@ func TestCreateGangInvalid(t *testing.T) {
 }
 
 func TestCreateGangValid(t *testing.T) {
-	// Use user.SetOrUpdate repository method to set user data
-	testUser := entity.User{
-		Username: "me_Ruben_Stone..23",
-		FullName: "Ruben Stone",
-		Password: "popcorn123",
-	}
-	testUser.SelectProfilePic()
-	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
-	if dberr != nil {
-		// Issues in SetOrUpdateUser()
-		t.Fail()
-	}
-	userCookie := http.Cookie{
-		Name:     "user",
-		Value:    "me_Ruben_Stone..23",
-		HttpOnly: true,
-	}
 	// Loop through every test scenarios defined in testdata/gang.json -> create_gang_valid
 	for name, data := range testdata.CreateGangValid {
 		data := data
@@ -217,7 +230,202 @@ func TestCreateGangValid(t *testing.T) {
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 
 			// Delete the created gang else next test will return 400
-			gangRepo.DelGang(ctx, logger, "me_Ruben_Stone..23")
+			gangRepo.DelGang(ctx, logger, testUser.Username)
+		})
+	}
+}
+
+func TestGetGang(t *testing.T) {
+	// Make a call to get_gang API to fetch blank created or joined gang data of testUser
+	request := test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/get",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
+	// get_gang response structure
+	gangData := struct {
+		Gang      []entity.GangResponse `json:"gang"`
+		CanCreate bool                  `json:"canCreateGang"`
+		CanJoin   bool                  `json:"canJoinGang"`
+	}{}
+	assert.Nil(t, json.Unmarshal(response.Body, &gangData))
+	assert.True(t, len(gangData.Gang) == 0)
+	assert.True(t, gangData.CanCreate)
+	assert.True(t, gangData.CanJoin)
+
+	testGang := entity.Gang{
+		Admin:   testUser.Username,
+		Name:    "Test Gang",
+		PassKey: "12345",
+		Limit:   2,
+	}
+	_, dberr := gangRepo.SetOrUpdateGang(ctx, logger, &testGang)
+	if dberr != nil {
+		// Issues in SetOrUpdateGang()
+		t.Fail()
+	}
+	// Make a call to get_gang API to fetch created gang data of testUser
+	request = test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/get",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response = test.ExecuteAPITest(logger, t, mockRouter, &request)
+	assert.Nil(t, json.Unmarshal(response.Body, &gangData))
+	assert.True(t, len(gangData.Gang) == 1)
+	assert.False(t, gangData.CanCreate)
+	assert.True(t, gangData.CanJoin)
+}
+
+func TestGetGangInvites(t *testing.T) {
+	// Make a call to get_gang_invites API to fetch testUser's invites list
+	request := test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/get/invites",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
+	// get_gang_invites response structure
+	gangInvites := struct {
+		Invites []entity.GangInvite `json:"invites"`
+	}{}
+	assert.Nil(t, json.Unmarshal(response.Body, &gangInvites))
+	assert.True(t, len(gangInvites.Invites) == 0)
+}
+
+func TestGetGangMembers(t *testing.T) {
+	// Make a call to get_gang_members API to fetch empty members list
+	// As testUser isn't an admin of any gang
+	request := test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/get/gang_members",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
+	// get_gang_members response structure
+	gangMembersList := struct {
+		Members []entity.User `json:"members"`
+	}{}
+	assert.Nil(t, json.Unmarshal(response.Body, &gangMembersList))
+	assert.True(t, len(gangMembersList.Members) == 0)
+}
+
+func TestJoinGangInvalid(t *testing.T) {
+	// Register list of gangs from testdata/gang.json to test join_gang API
+	for _, testGang := range testdata.GangList {
+		testGang := testGang
+		testCookie := http.Cookie{
+			Name:     "user",
+			Value:    testGang.Admin,
+			HttpOnly: true,
+		}
+		body, mrserr := json.Marshal(testGang)
+		if mrserr != nil {
+			logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
+			t.Fatal()
+		}
+
+		request := test.RequestAPITest{
+			Method:       http.MethodPost,
+			Path:         "/api/gang/create",
+			Body:         bytes.NewReader(body),
+			WantResponse: []int{http.StatusOK},
+			Header:       test.MockHeader(),
+			Parameters:   url.Values{},
+			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	}
+
+	// Loop through every test scenarios defined in testdata/gang.json -> join_gang_invalid
+	for name, data := range testdata.JoinGangInvalid {
+		data := data
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body, mrserr := json.Marshal(data.Body)
+			if mrserr != nil {
+				logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
+				t.Fatal()
+			}
+
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/gang/join",
+				Body:         bytes.NewReader(body),
+				WantResponse: data.WantResponse,
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
+}
+
+func TestJoinGangValid(t *testing.T) {
+	// Register list of gangs from testdata/gang.json to test join_gang API
+	for _, testGang := range testdata.GangList {
+		testGang := testGang
+		testCookie := http.Cookie{
+			Name:     "user",
+			Value:    testGang.Admin,
+			HttpOnly: true,
+		}
+		body, mrserr := json.Marshal(testGang)
+		if mrserr != nil {
+			logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
+			t.Fatal()
+		}
+
+		request := test.RequestAPITest{
+			Method:       http.MethodPost,
+			Path:         "/api/gang/create",
+			Body:         bytes.NewReader(body),
+			WantResponse: []int{http.StatusOK},
+			Header:       test.MockHeader(),
+			Parameters:   url.Values{},
+			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
+		}
+		test.ExecuteAPITest(logger, t, mockRouter, &request)
+	}
+	// Loop through every test scenarios defined in testdata/gang.json -> join_gang_valid
+	for name, data := range testdata.JoinGangValid {
+		data := data
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body, mrserr := json.Marshal(data.Body)
+			if mrserr != nil {
+				logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangValid struct into json in TestJoinGangValid()")
+				t.Fatal()
+			}
+
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/gang/join",
+				Body:         bytes.NewReader(body),
+				WantResponse: data.WantResponse,
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
 	}
 }

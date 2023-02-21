@@ -227,6 +227,8 @@ func TestSearchUserValidSearch(t *testing.T) {
 
 func TestSearchUserPaginated(t *testing.T) {
 	// Register list of users from testdata/user.json to test pagination in search_user API
+	// We're directly accessing repository method as we only need to search the user
+	// So no need to hash user's password
 	var wg sync.WaitGroup
 	for _, testUser := range testdata.UserList {
 		testUser := testUser

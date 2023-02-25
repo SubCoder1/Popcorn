@@ -104,6 +104,34 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	APIHandlers(mockRouter, gangService, test.MockAuthMiddleware(logger), logger)
 }
 
+// Helper to register list of gang to avoid repetition in tests below
+func registerGangList() {
+	// Register list of gangs from testdata/gang.json
+	for _, testGang := range testdata.GangList {
+		testGang := testGang
+		testCookie := http.Cookie{
+			Name:     "user",
+			Value:    testGang.Admin,
+			HttpOnly: true,
+		}
+		body, mrserr := json.Marshal(testGang)
+		if mrserr != nil {
+			logger.Fatal().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
+		}
+
+		request := test.RequestAPITest{
+			Method:       http.MethodPost,
+			Path:         "/api/gang/create",
+			Body:         bytes.NewReader(body),
+			WantResponse: []int{http.StatusOK},
+			Header:       test.MockHeader(),
+			Parameters:   url.Values{},
+			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
+		}
+		test.ExecuteAPITest(logger, &testing.T{}, mockRouter, &request)
+	}
+}
+
 // Sets up resources before testing Auth APIs in Popcorn.
 func setup() {
 	// Initializing Resources before test run
@@ -159,6 +187,8 @@ func setup() {
 		Value:    "me_Marta_Beard..23",
 		HttpOnly: true,
 	}
+	// Register list of gangs
+	registerGangList()
 }
 
 // Cleans up the resources built during execution of setup()
@@ -229,7 +259,7 @@ func TestCreateGangValid(t *testing.T) {
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 
-			// Delete the created gang else next test will return 400
+			// Delete the created gangs so that it can be reusable in other tests
 			gangRepo.DelGang(ctx, logger, testUser.Username)
 		})
 	}
@@ -328,37 +358,10 @@ func TestGetGangMembers(t *testing.T) {
 }
 
 func TestJoinGangInvalid(t *testing.T) {
-	// Register list of gangs from testdata/gang.json to test join_gang API
-	for _, testGang := range testdata.GangList {
-		testGang := testGang
-		testCookie := http.Cookie{
-			Name:     "user",
-			Value:    testGang.Admin,
-			HttpOnly: true,
-		}
-		body, mrserr := json.Marshal(testGang)
-		if mrserr != nil {
-			logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
-			t.Fatal()
-		}
-
-		request := test.RequestAPITest{
-			Method:       http.MethodPost,
-			Path:         "/api/gang/create",
-			Body:         bytes.NewReader(body),
-			WantResponse: []int{http.StatusOK},
-			Header:       test.MockHeader(),
-			Parameters:   url.Values{},
-			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
-		}
-		test.ExecuteAPITest(logger, t, mockRouter, &request)
-	}
-
 	// Loop through every test scenarios defined in testdata/gang.json -> join_gang_invalid
 	for name, data := range testdata.JoinGangInvalid {
 		data := data
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			body, mrserr := json.Marshal(data.Body)
 			if mrserr != nil {
 				logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
@@ -380,31 +383,6 @@ func TestJoinGangInvalid(t *testing.T) {
 }
 
 func TestJoinGangValid(t *testing.T) {
-	// Register list of gangs from testdata/gang.json to test join_gang API
-	for _, testGang := range testdata.GangList {
-		testGang := testGang
-		testCookie := http.Cookie{
-			Name:     "user",
-			Value:    testGang.Admin,
-			HttpOnly: true,
-		}
-		body, mrserr := json.Marshal(testGang)
-		if mrserr != nil {
-			logger.Error().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
-			t.Fatal()
-		}
-
-		request := test.RequestAPITest{
-			Method:       http.MethodPost,
-			Path:         "/api/gang/create",
-			Body:         bytes.NewReader(body),
-			WantResponse: []int{http.StatusOK},
-			Header:       test.MockHeader(),
-			Parameters:   url.Values{},
-			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
-		}
-		test.ExecuteAPITest(logger, t, mockRouter, &request)
-	}
 	// Loop through every test scenarios defined in testdata/gang.json -> join_gang_valid
 	for name, data := range testdata.JoinGangValid {
 		data := data

@@ -250,7 +250,7 @@ func TestSearchUserPaginated(t *testing.T) {
 
 	// Make a call to search_user API with "me." as search param
 	// Every username registered above started with me.
-	// Expected response, 200 with >=10 usernames returned and a new cursor (pagination)
+	// Expected response, 200 with a new cursor (pagination)
 	request := test.RequestAPITest{
 		Method:       http.MethodGet,
 		Path:         "/api/user/search",

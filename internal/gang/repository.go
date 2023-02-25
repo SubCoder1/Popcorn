@@ -309,7 +309,7 @@ func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, usern
 
 // Leaves the current joined gang
 func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entity.GangExit) error {
-	// Checking if an gang with gangKey and same gangName exists in the DB
+	// Checking if a gang with gangKey and same gangName exists in the DB
 	available, dberr := r.HasGang(ctx, logger, boot.Key, boot.Name)
 	if dberr != nil {
 		// Issues in HasGang()
@@ -328,6 +328,9 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get() in gang.LeaveGang")
 		return errors.InternalServerError("")
+	} else if len(memInGang) == 0 {
+		// memInGang is empty
+		return nil
 	}
 	// If boot.Type == boot, we have to make sure the member user is trying to kick out of his/her own gang actually is in his/her gang
 	if boot.Type != "leave" {
@@ -422,7 +425,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 		return dberr
 	}
 
-	// Add gang-joined:<username> to join
+	// Add gang-joined:<username> to join.Key
 	// Set gang-joined:<member> to gang:<gang_admin>
 	_, dberr = r.db.Client().Set(ctx, "gang-joined:"+username, join.Key, 0).Result()
 	if dberr != nil {
@@ -431,7 +434,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 		return errors.InternalServerError("")
 	}
 
-	// Add user with username into the GangMembersList
+	// Add user with username into the joined gang's GangMembersList
 	err := r.SetGangMembers(ctx, logger, gangMemberKey, username)
 	if err != nil {
 		// Issues in SetGangMembers()

@@ -55,6 +55,13 @@ type UserTestData struct {
 // UserTestData struct variable which stores unmarshalled all of the testdata for user tests.
 var testdata *UserTestData
 
+// TestUser account to be used during user API tests
+var testUser entity.User
+
+// TestUser Cookie to be passed during tests
+var userCookie http.Cookie
+
+// Helper to build up a mock router instance for testing Popcorn.
 func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	// Mock router instance
 	mockRouter = test.MockRouter()
@@ -70,6 +77,7 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 // Initializes resources needed before user API tests.
 func setup() {
 	// Initializing Resources before test run
+
 	// Load test.env
 	enverr := godotenv.Load("../../config/test.env")
 	if enverr != nil {
@@ -77,19 +85,24 @@ func setup() {
 		os.Exit(4)
 	}
 	version := os.Getenv("VERSION")
+
 	// Logger
 	logger = log.New(version)
+
 	// Db client instance
 	client = db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
 	client.CheckDbConnection(ctx, logger)
+
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
 	validations.RegisterCustomValidations(ctx, logger)
 	RegisterCustomValidations(ctx, logger)
+
 	// Initializing router
 	setupMockRouter(client, logger)
+
 	// Read testdata and unmarshall into UserTestData
 	datafilebytes, oserr := os.ReadFile("../../testdata/user.json")
 	if oserr != nil {
@@ -101,6 +114,27 @@ func setup() {
 		// Error during unmarshalling into UserTestData
 		logger.Fatal().Err(mrsherr).Msg("Couldn't unmarshall into UserTestData, Aborting test run.")
 	}
+
+	// Setup a test user account to be used for user API testing
+	// Use user.SetOrUpdate repository method to set user data
+	testUser = entity.User{
+		Username: "me_Marta_Beard..23",
+		FullName: "Marta Beard",
+		Password: "popcorn123",
+	}
+	testUser.SelectProfilePic()
+	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
+	if dberr != nil {
+		// Issues in SetOrUpdateUser()
+		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
+	}
+	// User Cookie to be passed during tests
+	userCookie = http.Cookie{
+		Name:     "user",
+		Value:    "me_Marta_Beard..23",
+		HttpOnly: true,
+	}
+
 	logger.Info().Msg("Test resources setup successful.")
 }
 
@@ -143,25 +177,6 @@ func TestGetUser404(t *testing.T) {
 }
 
 func TestGetUserSuccess(t *testing.T) {
-	// Use user.SetOrUpdate repository method to set user data
-	testUser := entity.User{
-		Username: "me_Flora_Ashley..23",
-		FullName: "Flora Ashley",
-		Password: "popcorn123",
-	}
-	testUser.SelectProfilePic()
-	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
-	if dberr != nil {
-		// Issues in SetOrUpdateUser()
-		t.Fail()
-	}
-
-	// This cookie is needed to fetch the username from context in service layer
-	registeredUserCookie := http.Cookie{
-		Name:     "user",
-		Value:    "me_Flora_Ashley..23",
-		HttpOnly: true,
-	}
 	// Make a call to get_user API to fetch registered user data
 	request := test.RequestAPITest{
 		Method:       http.MethodGet,
@@ -170,17 +185,12 @@ func TestGetUserSuccess(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &registeredUserCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 }
 
 func TestSearchUserInvalidSearch(t *testing.T) {
-	userCookie := http.Cookie{
-		Name:     "user",
-		Value:    "TestUser123",
-		HttpOnly: true,
-	}
 	// Loop through every test scenarios defined in testdata/user.json -> search_user_invalid
 	for subTestName, subTestBody := range testdata.SearchUserInvalid {
 		subTestBody := subTestBody
@@ -201,11 +211,6 @@ func TestSearchUserInvalidSearch(t *testing.T) {
 }
 
 func TestSearchUserValidSearch(t *testing.T) {
-	userCookie := http.Cookie{
-		Name:     "user",
-		Value:    "TestUser123",
-		HttpOnly: true,
-	}
 	// Loop through every test scenarios defined in testdata/user.json -> search_user_valid
 	for subTestName, subTestBody := range testdata.SearchUserValid {
 		subTestBody := subTestBody
@@ -242,12 +247,6 @@ func TestSearchUserPaginated(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-
-	userCookie := http.Cookie{
-		Name:     "user",
-		Value:    "TestUser123",
-		HttpOnly: true,
-	}
 
 	// Make a call to search_user API with "me." as search param
 	// Every username registered above started with me.

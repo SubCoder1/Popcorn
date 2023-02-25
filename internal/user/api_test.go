@@ -267,6 +267,7 @@ func TestSearchUserPaginated(t *testing.T) {
 	}{}
 	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
 	assert.True(t, len(searchResult.Result) >= 1)
+	assert.True(t, searchResult.Page != 0)
 
 	// Make another call with a new Page (cursor)
 	newCursor := strconv.Itoa(int(searchResult.Page))
@@ -282,4 +283,5 @@ func TestSearchUserPaginated(t *testing.T) {
 	response = test.ExecuteAPITest(logger, t, mockRouter, &request)
 	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
 	assert.True(t, len(searchResult.Result) >= 1)
+	assert.True(t, searchResult.Page == 0)
 }

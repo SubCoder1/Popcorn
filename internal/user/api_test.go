@@ -190,7 +190,7 @@ func TestGetUserSuccess(t *testing.T) {
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 }
 
-func TestSearchUserInvalidSearch(t *testing.T) {
+func TestSearchUserInvalid(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/user.json -> search_user_invalid
 	for subTestName, subTestBody := range testdata.SearchUserInvalid {
 		subTestBody := subTestBody
@@ -210,7 +210,7 @@ func TestSearchUserInvalidSearch(t *testing.T) {
 	}
 }
 
-func TestSearchUserValidSearch(t *testing.T) {
+func TestSearchUserValid(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/user.json -> search_user_valid
 	for subTestName, subTestBody := range testdata.SearchUserValid {
 		subTestBody := subTestBody

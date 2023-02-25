@@ -11,14 +11,14 @@
             },
             "response": [400]
         },
-        "TestGangNameOutOfBounds1": {
+        "TestGangNameOutOfLowerBound": {
             "body": {
                 "gang_name": "Abcd",
                 "gang_pass_key": "popcorn123"
             },
             "response": [400]
         },
-        "TestGangNameOutOfBounds2": {
+        "TestGangNameOutOfUpperBound": {
             "body": {
                 "gang_name": "aaaabbbbccccdddasrqweqweqwhekwrnewlkndlksnanasenrlkqwejqweoijwqn12312432234_324wsnsaewq2q2e",
                 "gang_pass_key": "popcorn123"
@@ -88,7 +88,7 @@
             },
             "response": [400]
         },
-        "TestGangMemberLimitOutOfBounds1": {
+        "TestGangMemberLimitOutOfLowerBound": {
             "body": {
                 "gang_name": "MyNewGang123",
                 "gang_pass_key": "popcorn123",
@@ -96,7 +96,7 @@
             },
             "response": [400]
         },
-        "TestGangMemberLimitOutOfBounds2": {
+        "TestGangMemberLimitOutOfUpperBound": {
             "body": {
                 "gang_name": "MyNewGang123",
                 "gang_pass_key": "popcorn123",
@@ -104,7 +104,7 @@
             },
             "response": [400]
         },
-        "TestGangMemberLimitOutOfBounds3": {
+        "TestGangMemberLimitNegativeNumber": {
             "body": {
                 "gang_name": "MyNewGang123",
                 "gang_pass_key": "popcorn123",
@@ -279,7 +279,7 @@
             },
             "response": [400]
         },
-        "TestGangNameOutOfBounds1": {
+        "TestGangNameOutOfLowerBound": {
             "body": {
                 "gang_admin": "im_arnab23",
                 "gang_name": "Abcd",
@@ -287,7 +287,7 @@
             },
             "response": [400]
         },
-        "TestGangNameOutOfBounds2": {
+        "TestGangNameOutOfUpperBound": {
             "body": {
                 "gang_admin": "im_arnab23",
                 "gang_name": "aaaabbbbccccdddasrqweqweqwhekwrnewlkndlksnanasenrlkqwejqweoijwqn12312432234_324wsnsaewq2q2e",
@@ -406,6 +406,115 @@
                 "gang_admin": "me.Craig_Cobb..23",
                 "gang_name": "My Gang 2",
                 "gang_pass_key": "Popcorn1_2_3"
+            },
+            "response": [200]
+        }
+    },
+    "search_gang_invalid": {
+        "TestBlankQuery": {
+            "body": {},
+            "response": [400]
+        },
+        "TestCursorOutOfUpperBound": {
+            "body": {
+                "cursor": ["100001"]
+            },
+            "response": [400]
+        },
+        "TestCursorOutOfLowerBound": {
+            "body": {
+                "cursor": ["-100"]
+            },
+            "response": [400]
+        },
+        "TestCursorInvalid": {
+            "body": {
+                "cursor": ["abcd"]
+            },
+            "response": [400]
+        },
+        "TestBlankGangName": {
+            "body": {
+                "gang_name": [""],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "TestGangNameOutOfUpperBound": {
+            "body": {
+                "gang_name": ["aaaabbbbccccdddasrqweqweqwhekwrnewlkndlksnanasenrlkqwejqweoijwqn12312432234_324wsnsaewq2q2e"],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "TestGangNameOnlyWhiteSpaces": {
+            "body": {
+                "gang_name": ["       "],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "TestGangNameInvalidSymbol": {
+            "body": {
+                "gang_name": ["My_New_gang123.#$"],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        },
+        "TestGangNameWeirdCharacters": {
+            "body": {
+                "gang_name": ["My_New_Gangß"],
+                "cursor": ["0"]
+            },
+            "response": [400]
+        }
+    },
+    "search_gang_valid": {
+        "TestGangNameValid1": {
+            "body": {
+                "gang_name": ["arn"],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "TestsGangNameValid2": {
+            "body": {
+                "gang_name": ["arn_."],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "TestsGangNameValid3": {
+            "body": {
+                "gang_name": ["mY gang_123"],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "TestCursorEmpty": {
+            "body": {
+                "gang_name": ["arn"]
+            },
+            "response": [200]
+        },
+        "TestCursorValid1": {
+            "body": {
+                "gang_name": ["arn"],
+                "cursor": ["0"]
+            },
+            "response": [200]
+        },
+        "TestCursorValid2": {
+            "body": {
+                "gang_name": ["arn"],
+                "cursor": ["100"]
+            },
+            "response": [200]
+        },
+        "TestCursorValid3": {
+            "body": {
+                "gang_name": ["arn"],
+                "cursor": ["1000"]
             },
             "response": [200]
         }

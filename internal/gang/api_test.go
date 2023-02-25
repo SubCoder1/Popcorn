@@ -78,6 +78,16 @@ type GangTestData struct {
 		WantResponse []int `json:"response"`
 	} `json:"join_gang_valid"`
 
+	SearchGangInvalid map[string]*struct {
+		Body     url.Values `json:"body,omitempty"`
+		Response []int      `json:"response"`
+	} `json:"search_gang_invalid"`
+
+	SearchGangValid map[string]*struct {
+		Body     url.Values `json:"body,omitempty"`
+		Response []int      `json:"response"`
+	} `json:"search_gang_valid"`
+
 	GangList []entity.Gang `json:"gang_list"`
 }
 
@@ -135,6 +145,7 @@ func registerGangList() {
 // Sets up resources before testing Auth APIs in Popcorn.
 func setup() {
 	// Initializing Resources before test run
+
 	// Load test.env
 	enverr := godotenv.Load("../../config/test.env")
 	if enverr != nil {
@@ -142,20 +153,25 @@ func setup() {
 		os.Exit(4)
 	}
 	version := os.Getenv("VERSION")
+
 	// Logger
 	logger = log.New(version)
+
 	// Db client instance
 	client = db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
 	client.CheckDbConnection(ctx, logger)
+
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
 	validations.RegisterCustomValidations(ctx, logger)
 	user.RegisterCustomValidations(ctx, logger)
 	RegisterCustomValidations(ctx, logger)
+
 	// Initializing router
 	setupMockRouter(client, logger)
+
 	// Read testdata and unmarshall into UserTestData
 	datafilebytes, oserr := os.ReadFile("../../testdata/gang.json")
 	if oserr != nil {
@@ -167,7 +183,7 @@ func setup() {
 		// Error during unmarshalling into UserTestData
 		logger.Fatal().Err(mrsherr).Msg("Couldn't unmarshall into UserTestData, Aborting test run.")
 	}
-	logger.Info().Msg("Test resources setup successful.")
+
 	// Setup a test user account to be used for gang API testing
 	// Use user.SetOrUpdate repository method to set user data
 	testUser = entity.User{
@@ -187,8 +203,11 @@ func setup() {
 		Value:    "me_Marta_Beard..23",
 		HttpOnly: true,
 	}
+
 	// Register list of gangs
 	registerGangList()
+
+	logger.Info().Msg("Test resources setup successful.")
 }
 
 // Cleans up the resources built during execution of setup()
@@ -401,6 +420,46 @@ func TestJoinGangValid(t *testing.T) {
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
+}
+
+func TestSearchGangInvalid(t *testing.T) {
+	// Loop through every test scenarios defined in testdata/gang.json -> search_gang_invalid
+	for subTestName, subTestBody := range testdata.SearchGangInvalid {
+		subTestBody := subTestBody
+		t.Run(subTestName, func(t *testing.T) {
+			t.Parallel()
+			request := test.RequestAPITest{
+				Method:       http.MethodGet,
+				Path:         "/api/gang/search",
+				Body:         bytes.NewReader([]byte{}),
+				WantResponse: subTestBody.Response,
+				Header:       test.MockHeader(),
+				Parameters:   subTestBody.Body,
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
+}
+
+func TestSearchGangValid(t *testing.T) {
+	// Loop through every test scenarios defined in testdata/gang.json -> search_gang_valid
+	for subTestName, subTestBody := range testdata.SearchGangValid {
+		subTestBody := subTestBody
+		t.Run(subTestName, func(t *testing.T) {
+			t.Parallel()
+			request := test.RequestAPITest{
+				Method:       http.MethodGet,
+				Path:         "/api/gang/search",
+				Body:         bytes.NewReader([]byte{}),
+				WantResponse: subTestBody.Response,
+				Header:       test.MockHeader(),
+				Parameters:   subTestBody.Body,
 				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)

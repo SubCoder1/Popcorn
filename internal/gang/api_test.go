@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/asaskevich/govalidator"
@@ -116,30 +117,36 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 
 // Helper to register list of gang to avoid repetition in tests below
 func registerGangList() {
+	var wg sync.WaitGroup
 	// Register list of gangs from testdata/gang.json
 	for _, testGang := range testdata.GangList {
 		testGang := testGang
-		testCookie := http.Cookie{
-			Name:     "user",
-			Value:    testGang.Admin,
-			HttpOnly: true,
-		}
-		body, mrserr := json.Marshal(testGang)
-		if mrserr != nil {
-			logger.Fatal().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			testCookie := http.Cookie{
+				Name:     "user",
+				Value:    testGang.Admin,
+				HttpOnly: true,
+			}
+			body, mrserr := json.Marshal(testGang)
+			if mrserr != nil {
+				logger.Fatal().Err(mrserr).Msg("Couldn't marshall JoinGangInvalid struct into json in TestJoinGangInvalid()")
+			}
 
-		request := test.RequestAPITest{
-			Method:       http.MethodPost,
-			Path:         "/api/gang/create",
-			Body:         bytes.NewReader(body),
-			WantResponse: []int{http.StatusOK},
-			Header:       test.MockHeader(),
-			Parameters:   url.Values{},
-			Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
-		}
-		test.ExecuteAPITest(logger, &testing.T{}, mockRouter, &request)
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/gang/create",
+				Body:         bytes.NewReader(body),
+				WantResponse: []int{http.StatusOK},
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testCookie},
+			}
+			test.ExecuteAPITest(logger, &testing.T{}, mockRouter, &request)
+		}()
 	}
+	wg.Wait()
 }
 
 // Sets up resources before testing Auth APIs in Popcorn.

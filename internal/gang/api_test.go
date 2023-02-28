@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -472,4 +473,43 @@ func TestSearchGangValid(t *testing.T) {
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
 	}
+}
+
+func TestSearchGangPaginated(t *testing.T) {
+	// As every gang registered in setup() starts with "My"
+	// Make a call to SearchGang with "My" as search query
+	// Expected response, 200 with a new cursor (pagination)
+	request := test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/search",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{"gang_name": {"My"}},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
+	searchResult := struct {
+		Result []entity.GangResponse `json:"result"`
+		Page   int64                 `json:"page"`
+	}{}
+	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
+	assert.True(t, len(searchResult.Result) >= 1)
+	assert.True(t, searchResult.Page != 0)
+
+	// Make another call with a new Page (cursor)
+	newCursor := strconv.Itoa(int(searchResult.Page))
+	request = test.RequestAPITest{
+		Method:       http.MethodGet,
+		Path:         "/api/gang/search",
+		Body:         bytes.NewReader([]byte{}),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{"gang_name": {"My"}, "cursor": {newCursor}},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	response = test.ExecuteAPITest(logger, t, mockRouter, &request)
+	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
+	assert.True(t, len(searchResult.Result) >= 1)
+	assert.True(t, searchResult.Page == 0)
 }

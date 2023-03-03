@@ -551,3 +551,49 @@ func TestSendGangInviteInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestSendGangInviteValid(t *testing.T) {
+	// Create a gang for testUser
+	testGang := entity.Gang{
+		Name:    "My Gang 123",
+		PassKey: "12345",
+		Limit:   2,
+	}
+	body, mrserr := json.Marshal(testGang)
+	if mrserr != nil {
+		logger.Error().Err(mrserr).Msg("Couldn't marshall Gang struct into json in TestSendGangInviteValid()")
+		t.Fatal()
+	}
+
+	request := test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/create",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Send invite
+	testInvite := entity.GangInvite{
+		Name: "My Gang 123",
+		For:  "Test_User123",
+	}
+	body, mrserr = json.Marshal(testInvite)
+	if mrserr != nil {
+		logger.Error().Err(mrserr).Msg("Couldn't marshall GangInvite struct into json in TestSendGangInviteValid()")
+		t.Fatal()
+	}
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/send_invite",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+}

@@ -51,7 +51,7 @@ type GangSearch struct {
 type GangInvite struct {
 	Admin          string `json:"gang_admin,omitempty" valid:"-"`
 	Name           string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
-	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
+	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
 	CreatedTimeAgo string `json:"invite_sent_timeago,omitempty" valid:"-"`
 }
 

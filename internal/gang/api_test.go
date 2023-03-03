@@ -81,14 +81,22 @@ type GangTestData struct {
 	} `json:"join_gang_valid"`
 
 	SearchGangInvalid map[string]*struct {
-		Body     url.Values `json:"body,omitempty"`
-		Response []int      `json:"response"`
+		Body         url.Values `json:"body,omitempty"`
+		WantResponse []int      `json:"response"`
 	} `json:"search_gang_invalid"`
 
 	SearchGangValid map[string]*struct {
-		Body     url.Values `json:"body,omitempty"`
-		Response []int      `json:"response"`
+		Body         url.Values `json:"body,omitempty"`
+		WantResponse []int      `json:"response"`
 	} `json:"search_gang_valid"`
+
+	GangInviteInvalid map[string]*struct {
+		Body *struct {
+			Name interface{} `json:"gang_name,omitempty"`
+			For  interface{} `json:"gang_invite_for,omitempty"`
+		} `json:"body,omitempty"`
+		WantResponse []int `json:"response"`
+	} `json:"gang_invite_invalid"`
 
 	GangList []entity.Gang `json:"gang_list"`
 }
@@ -150,6 +158,28 @@ func registerGangList() {
 	wg.Wait()
 }
 
+// Helper to register test user required in the tests below
+func registerTestUser(username, fullname string) {
+	// Use user.SetOrUpdate repository method to set user data
+	testUser = entity.User{
+		Username: username,
+		FullName: fullname,
+		Password: "popcorn123",
+	}
+	testUser.SelectProfilePic()
+	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
+	if dberr != nil {
+		// Issues in SetOrUpdateUser()
+		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
+	}
+	// User Cookie to be passed during tests
+	userCookie = http.Cookie{
+		Name:     "user",
+		Value:    username,
+		HttpOnly: true,
+	}
+}
+
 // Sets up resources before testing Auth APIs in Popcorn.
 func setup() {
 	// Initializing Resources before test run
@@ -193,24 +223,7 @@ func setup() {
 	}
 
 	// Setup a test user account to be used for gang API testing
-	// Use user.SetOrUpdate repository method to set user data
-	testUser = entity.User{
-		Username: "me_Marta_Beard..23",
-		FullName: "Marta Beard",
-		Password: "popcorn123",
-	}
-	testUser.SelectProfilePic()
-	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
-	if dberr != nil {
-		// Issues in SetOrUpdateUser()
-		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
-	}
-	// User Cookie to be passed during tests
-	userCookie = http.Cookie{
-		Name:     "user",
-		Value:    "me_Marta_Beard..23",
-		HttpOnly: true,
-	}
+	registerTestUser("me_Marta_Beard..23", "Marta Beard")
 
 	// Register list of gangs
 	registerGangList()
@@ -445,7 +458,7 @@ func TestSearchGangInvalid(t *testing.T) {
 				Method:       http.MethodGet,
 				Path:         "/api/gang/search",
 				Body:         bytes.NewReader([]byte{}),
-				WantResponse: subTestBody.Response,
+				WantResponse: subTestBody.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   subTestBody.Body,
 				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
@@ -465,7 +478,7 @@ func TestSearchGangValid(t *testing.T) {
 				Method:       http.MethodGet,
 				Path:         "/api/gang/search",
 				Body:         bytes.NewReader([]byte{}),
-				WantResponse: subTestBody.Response,
+				WantResponse: subTestBody.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   subTestBody.Body,
 				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
@@ -512,4 +525,29 @@ func TestSearchGangPaginated(t *testing.T) {
 	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
 	assert.True(t, len(searchResult.Result) >= 1)
 	assert.True(t, searchResult.Page == 0)
+}
+
+func TestSendGangInviteInvalid(t *testing.T) {
+	// Loop through every test scenarios defined in testdata/gang.json -> gang_invite_invalid
+	for subTestName, subTestBody := range testdata.GangInviteInvalid {
+		subTestBody := subTestBody
+		body, mrserr := json.Marshal(subTestBody.Body)
+		if mrserr != nil {
+			logger.Error().Err(mrserr).Msg("Couldn't marshall GangInviteInvalid struct into json in TestSendGangInviteInvalid()")
+			t.Fatal()
+		}
+		t.Run(subTestName, func(t *testing.T) {
+			t.Parallel()
+			request := test.RequestAPITest{
+				Method:       http.MethodPost,
+				Path:         "/api/gang/send_invite",
+				Body:         bytes.NewReader(body),
+				WantResponse: subTestBody.WantResponse,
+				Header:       test.MockHeader(),
+				Parameters:   url.Values{},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+			}
+			test.ExecuteAPITest(logger, t, mockRouter, &request)
+		})
+	}
 }

@@ -622,5 +622,121 @@
             "gang_pass_key": "Popcorn1_2_3",
             "gang_member_limit": 2
         }
-    ]
+    ],
+    "gang_invite_invalid": {
+        "TestBlankQuery": {
+            "body": {},
+            "response": [400]
+        },
+        "TestBlankGangName": {
+            "body": {
+                "gang_name": "",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameOutOfLowerBound": {
+            "body": {
+                "gang_name": "Abcd",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameOutOfUpperBound": {
+            "body": {
+                "gang_name": "aaaabbbbccccdddasrqweqweqwhekwrnewlkndlksnanasenrlkqwejqweoijwqn12312432234_324wsnsaewq2q2e",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameOnlyWhiteSpaces": {
+            "body": {
+                "gang_name": "       ",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameInvalidSymbol": {
+            "body": {
+                "gang_name": "My_New_gang123.#$",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameWeirdCharacters": {
+            "body": {
+                "gang_name": "My_New_Gangß",
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [400]
+        },
+        "TestGangNameAsNumber": {
+            "body": {
+                "gang_name": 12345,
+                "gang_invite_for": "popcorn123"
+            },
+            "response": [422]
+        }, "TestUsernameWithInvalidSymbol": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "im#arnab23"
+            },
+            "response": [400]
+        },
+        "TestUsernameWhiteSpace": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "im arnab23"
+            },
+            "response": [400]
+        },
+        "TestUsernameWhiteSpaceOnly": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "      "
+            },
+            "response": [400]
+        },
+        "TestUsernameEmpty": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": ""
+            },
+            "response": [400]
+        },
+        "TestUsernameOutOfLowerBound": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "im_a"
+            },
+            "response": [400]
+        },
+        "TestUsernameOutOfUpperBound": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "Souma.Kanti_Ghosh12356789__YTE_00987643345"
+            },
+            "response": [400]
+        },
+        "TestUsernameMissing": {
+            "body": {
+                "gang_name": "My Gang 1"
+            },
+            "response": [400]
+        },
+        "TestUsernameAsNumber": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": 123456
+            },
+            "response": [422]
+        },
+        "TestUsernameWithWeirdChars": {
+            "body": {
+                "gang_name": "My Gang 1",
+                "gang_invite_for": "œÂ¿½¼ºÐ_123"
+            },
+            "response": [400]
+        }
+    }
 }

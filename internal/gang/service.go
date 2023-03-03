@@ -190,12 +190,8 @@ func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) e
 		// Error occured during validation
 		return valerr
 	}
-	// check if gang exists
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+invite.Admin, invite.Name)
-	if dberr != nil {
-		// Error occured in HasGang()
-		return dberr
-	} else if invite.Admin == invite.For || !available { // check if self invite is getting sent
+	// check if self invite is getting sent
+	if invite.Admin == invite.For {
 		return errors.BadRequest("Invalid Gang Invite")
 	}
 	return s.gangRepo.SendGangInvite(ctx, s.logger, invite)

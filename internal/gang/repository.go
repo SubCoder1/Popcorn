@@ -504,9 +504,18 @@ func (r repository) DelGangInvite(ctx context.Context, logger log.Logger, invite
 
 // Adds incoming invite request to receiver's gang-invites: set in DB.
 func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
+	// check if gang exists
+	available, dberr := r.HasGang(ctx, logger, "gang:"+invite.Admin, invite.Name)
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if !available {
+		// Gang doesn't exist
+		return errors.BadRequest("Invalid Gang Invite")
+	}
 	// Delete any duplicate invite from the same <invite.Admin>:<invite.Name>:*
 	invitesKey := "gang-invites:" + invite.For
-	dberr := r.DelGangInvite(ctx, logger, invite)
+	dberr = r.DelGangInvite(ctx, logger, invite)
 	if dberr != nil {
 		// We can ignore existingInvites == 0 check during sendInvites
 		err, ok := dberr.(errors.ErrorResponse)

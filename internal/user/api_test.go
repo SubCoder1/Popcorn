@@ -74,6 +74,28 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	APIHandlers(mockRouter, userService, test.MockAuthMiddleware(logger), logger)
 }
 
+// Helper to register test user required in the tests below
+func registerTestUser(username, fullname string) {
+	// Use user.SetOrUpdate repository method to set user data
+	testUser = entity.User{
+		Username: username,
+		FullName: fullname,
+		Password: "popcorn123",
+	}
+	testUser.SelectProfilePic()
+	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
+	if dberr != nil {
+		// Issues in SetOrUpdateUser()
+		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
+	}
+	// User Cookie to be passed during tests
+	userCookie = http.Cookie{
+		Name:     "user",
+		Value:    username,
+		HttpOnly: true,
+	}
+}
+
 // Initializes resources needed before user API tests.
 func setup() {
 	// Initializing Resources before test run
@@ -116,24 +138,7 @@ func setup() {
 	}
 
 	// Setup a test user account to be used for user API testing
-	// Use user.SetOrUpdate repository method to set user data
-	testUser = entity.User{
-		Username: "me_Marta_Beard..23",
-		FullName: "Marta Beard",
-		Password: "popcorn123",
-	}
-	testUser.SelectProfilePic()
-	_, dberr := userRepo.SetOrUpdateUser(ctx, logger, testUser, true)
-	if dberr != nil {
-		// Issues in SetOrUpdateUser()
-		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
-	}
-	// User Cookie to be passed during tests
-	userCookie = http.Cookie{
-		Name:     "user",
-		Value:    "me_Marta_Beard..23",
-		HttpOnly: true,
-	}
+	registerTestUser("me_Oswaldo_Solis..23", "Oswaldo Solis")
 
 	logger.Info().Msg("Test resources setup successful.")
 }

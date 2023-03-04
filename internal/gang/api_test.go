@@ -108,7 +108,7 @@ var testdata *GangTestData
 var testUser entity.User
 
 // TestUser Cookie to be passed during tests
-var userCookie http.Cookie
+var testUserCookie http.Cookie
 
 // Helper to build up a mock router instance for testing Popcorn.
 func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
@@ -159,9 +159,9 @@ func registerGangList() {
 }
 
 // Helper to register test user required in the tests below
-func registerTestUser(username, fullname string) {
+func registerTestUser(username, fullname string) (entity.User, http.Cookie) {
 	// Use user.SetOrUpdate repository method to set user data
-	testUser = entity.User{
+	testUser := entity.User{
 		Username: username,
 		FullName: fullname,
 		Password: "popcorn123",
@@ -173,11 +173,13 @@ func registerTestUser(username, fullname string) {
 		logger.Fatal().Err(dberr).Msg("Couldn't create testUser, Aborting test run.")
 	}
 	// User Cookie to be passed during tests
-	userCookie = http.Cookie{
+	testUserCookie := http.Cookie{
 		Name:     "user",
 		Value:    username,
 		HttpOnly: true,
 	}
+
+	return testUser, testUserCookie
 }
 
 // Sets up resources before testing Auth APIs in Popcorn.
@@ -223,7 +225,7 @@ func setup() {
 	}
 
 	// Setup a test user account to be used for gang API testing
-	registerTestUser("me_Marta_Beard..23", "Marta Beard")
+	testUser, testUserCookie = registerTestUser("me_Marta_Beard..23", "Marta Beard")
 
 	// Register list of gangs
 	registerGangList()
@@ -269,7 +271,7 @@ func TestCreateGangInvalid(t *testing.T) {
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -295,7 +297,7 @@ func TestCreateGangValid(t *testing.T) {
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 
@@ -314,7 +316,7 @@ func TestGetGang(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
 	// get_gang response structure
@@ -347,7 +349,7 @@ func TestGetGang(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response = test.ExecuteAPITest(logger, t, mockRouter, &request)
 	assert.Nil(t, json.Unmarshal(response.Body, &gangData))
@@ -365,7 +367,7 @@ func TestGetGangInvites(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
 	// get_gang_invites response structure
@@ -386,7 +388,7 @@ func TestGetGangMembers(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
 	// get_gang_members response structure
@@ -415,7 +417,7 @@ func TestJoinGangInvalid(t *testing.T) {
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -441,7 +443,7 @@ func TestJoinGangValid(t *testing.T) {
 				WantResponse: data.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -461,7 +463,7 @@ func TestSearchGangInvalid(t *testing.T) {
 				WantResponse: subTestBody.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   subTestBody.Body,
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -481,7 +483,7 @@ func TestSearchGangValid(t *testing.T) {
 				WantResponse: subTestBody.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   subTestBody.Body,
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
@@ -499,7 +501,7 @@ func TestSearchGangPaginated(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{"gang_name": {"My"}},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response := test.ExecuteAPITest(logger, t, mockRouter, &request)
 	searchResult := struct {
@@ -519,7 +521,7 @@ func TestSearchGangPaginated(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{"gang_name": {"My"}, "cursor": {newCursor}},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	response = test.ExecuteAPITest(logger, t, mockRouter, &request)
 	assert.Nil(t, json.Unmarshal(response.Body, &searchResult))
@@ -527,7 +529,9 @@ func TestSearchGangPaginated(t *testing.T) {
 	assert.True(t, searchResult.Page == 0)
 }
 
-func TestSendGangInviteInvalid(t *testing.T) {
+// Send / Accept / Reject Gang Invite invalid test is same as that of TestSendGangInviteInvalid
+// As they use the same entity.GangInvite struct with same validations
+func TestSendAcceptRejectGangInviteInvalid(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/gang.json -> gang_invite_invalid
 	for subTestName, subTestBody := range testdata.GangInviteInvalid {
 		subTestBody := subTestBody
@@ -545,14 +549,16 @@ func TestSendGangInviteInvalid(t *testing.T) {
 				WantResponse: subTestBody.WantResponse,
 				Header:       test.MockHeader(),
 				Parameters:   url.Values{},
-				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+				Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 			}
 			test.ExecuteAPITest(logger, t, mockRouter, &request)
 		})
 	}
 }
 
-func TestSendGangInviteValid(t *testing.T) {
+func TestSendAcceptRejectGangInviteValid(t *testing.T) {
+	// Delete any gang created by testUser during the execution of above tests
+	gangRepo.DelGang(ctx, logger, testUser.Username)
 	// Create a gang for testUser
 	testGang := entity.Gang{
 		Name:    "My Gang 123",
@@ -572,14 +578,17 @@ func TestSendGangInviteValid(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 
+	// Create a temp user who's going to receive the gang invite
+	_, tempUserCookie := registerTestUser("Temp_User123", "Temp User")
 	// Send invite
 	testInvite := entity.GangInvite{
-		Name: "My Gang 123",
-		For:  "Test_User123",
+		Admin: testUser.Username,
+		Name:  "My Gang 123",
+		For:   "Temp_User123",
 	}
 	body, mrserr = json.Marshal(testInvite)
 	if mrserr != nil {
@@ -593,7 +602,43 @@ func TestSendGangInviteValid(t *testing.T) {
 		WantResponse: []int{http.StatusOK},
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
-		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &userCookie},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Reject Invite
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/reject_invite",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &tempUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Send another invite to test request accept
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/send_invite",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Accept Invite
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/accept_invite",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &tempUserCookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 }

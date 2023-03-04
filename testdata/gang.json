@@ -737,6 +737,13 @@
                 "gang_invite_for": "œÂ¿½¼ºÐ_123"
             },
             "response": [400]
+        },
+        "TestGangDoesntExist": {
+            "body": {
+                "gang_name": "My Gang 99",
+                "gang_invite_for": "im_arnab23"
+            },
+            "response": [400]
         }
     }
 }

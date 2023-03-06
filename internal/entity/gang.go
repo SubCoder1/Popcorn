@@ -57,7 +57,7 @@ type GangInvite struct {
 
 // Used to bind and validate boot_member or leave_gang request.
 type GangExit struct {
-	Member string `json:"member_name" valid:"required,type(string),printableascii,stringlength(5|20),username_custom~username:Invalid Username"`
+	Member string `json:"member_name" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
 	Name   string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	Key    string `json:"-" valid:"-"`
 	Type   string `json:"-" valid:"in(leave|boot)"` // leave request from user, boot request from gang admin

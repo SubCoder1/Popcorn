@@ -531,7 +531,7 @@ func TestSearchGangPaginated(t *testing.T) {
 
 // Send / Accept / Reject Gang Invite invalid test is same as that of TestSendGangInviteInvalid
 // As they use the same entity.GangInvite struct with same validations
-func TestSendAcceptRejectGangInviteInvalid(t *testing.T) {
+func TestGangInviteInvalid(t *testing.T) {
 	// Loop through every test scenarios defined in testdata/gang.json -> gang_invite_invalid
 	for subTestName, subTestBody := range testdata.GangInviteInvalid {
 		subTestBody := subTestBody
@@ -556,7 +556,9 @@ func TestSendAcceptRejectGangInviteInvalid(t *testing.T) {
 	}
 }
 
-func TestSendAcceptRejectGangInviteValid(t *testing.T) {
+// Send / Accept / Reject / Gang Invite valid test and Boot gang member test
+// Merged all of the test as all requires creating a gang first
+func TestGangInviteBoot(t *testing.T) {
 	// Delete any gang created by testUser during the execution of above tests
 	gangRepo.DelGang(ctx, logger, testUser.Username)
 	// Create a gang for testUser
@@ -584,6 +586,7 @@ func TestSendAcceptRejectGangInviteValid(t *testing.T) {
 
 	// Create a temp user who's going to receive the gang invite
 	_, tempUserCookie := registerTestUser("Temp_User123", "Temp User")
+
 	// Send invite
 	testInvite := entity.GangInvite{
 		Admin: testUser.Username,
@@ -639,6 +642,72 @@ func TestSendAcceptRejectGangInviteValid(t *testing.T) {
 		Header:       test.MockHeader(),
 		Parameters:   url.Values{},
 		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &tempUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Boot member (Invalid)
+	testBootInvalidGangName := entity.GangExit{
+		Member: "Temp_User123",
+		Name:   testGang.Name + "invaliD",
+	}
+	body, mrserr = json.Marshal(testBootInvalidGangName)
+	if mrserr != nil {
+		logger.Error().Err(mrserr).Msg("Couldn't marshall GangExit struct into json in TestGangInvite()")
+		t.Fatal()
+	}
+
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/boot_member",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusBadRequest},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	testBootInvalidUsername := entity.GangExit{
+		Member: "Temp_User_1",
+		Name:   testGang.Name,
+	}
+
+	body, mrserr = json.Marshal(testBootInvalidUsername)
+	if mrserr != nil {
+		logger.Error().Err(mrserr).Msg("Couldn't marshall GangExit struct into json in TestGangInvite()")
+		t.Fatal()
+	}
+
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/boot_member",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusBadRequest},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
+	}
+	test.ExecuteAPITest(logger, t, mockRouter, &request)
+
+	// Boot member (Valid)
+	testBootValid := entity.GangExit{
+		Member: "Temp_User123",
+		Name:   testGang.Name,
+	}
+	body, mrserr = json.Marshal(testBootValid)
+	if mrserr != nil {
+		logger.Error().Err(mrserr).Msg("Couldn't marshall GangExit struct into json in TestGangInvite()")
+		t.Fatal()
+	}
+
+	request = test.RequestAPITest{
+		Method:       http.MethodPost,
+		Path:         "/api/gang/boot_member",
+		Body:         bytes.NewReader(body),
+		WantResponse: []int{http.StatusOK},
+		Header:       test.MockHeader(),
+		Parameters:   url.Values{},
+		Cookie:       []*http.Cookie{test.MockAuthAllowCookie, &testUserCookie},
 	}
 	test.ExecuteAPITest(logger, t, mockRouter, &request)
 }

@@ -328,8 +328,11 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get() in gang.LeaveGang")
 		return errors.InternalServerError("")
-	} else if len(memInGang) == 0 {
+	} else if dberr == redis.Nil {
 		// memInGang is empty
+		if boot.Type == "boot" {
+			return errors.BadRequest("Invalid Boot Request")
+		}
 		return nil
 	}
 	// If boot.Type == boot, we have to make sure the member user is trying to kick out of his/her own gang actually is in his/her gang

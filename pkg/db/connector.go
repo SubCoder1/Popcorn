@@ -70,16 +70,18 @@ func NewDbConnection(ctx context.Context, logger log.Logger) *RedisDB {
 
 // Helper to check connection status of redis client to redis-server.
 // Equivalent to a PING request on redis-server, returns PONG on success.
-func (db *RedisDB) CheckDbConnection(ctx context.Context, logger log.Logger) {
+func (db *RedisDB) CheckDbConnection(ctx context.Context, logger log.Logger) error {
 	logger.WithCtx(ctx).Info().Msg("Checking DB Connection . . .")
 	// Pinging the Redis-server to check connection status
 	cnterr := db.Client().Ping(ctx).Err()
 	if cnterr != nil {
 		// Most likely, DB connection failure
-		logger.WithCtx(ctx).Fatal().Err(cnterr).Msg("Redis client couldn't PING the redis-server.")
+		logger.WithCtx(ctx).Error().Err(cnterr).Msg("Redis client couldn't PING the redis-server.")
+		return cnterr
 	}
 	// Connection successful
 	logger.WithCtx(ctx).Info().Msg("Connection to DB Successful")
+	return nil
 }
 
 // Helper to clean up test db after finishing Popcorn tests.

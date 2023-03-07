@@ -114,8 +114,10 @@ func setup() {
 	// Db client instance
 	client = db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
-	client.CheckDbConnection(ctx, logger)
-
+	if client.CheckDbConnection(ctx, logger) != nil {
+		// connection failure
+		os.Exit(6)
+	}
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
@@ -146,8 +148,11 @@ func setup() {
 // Cleans up the resources built during execution of setup().
 func teardown() {
 	logger.Info().Msg("Cleaning up resources ...")
-	client.CleanTestDbData(ctx, logger)
-	client.CloseDbConnection(ctx)
+	if client.CheckDbConnection(ctx, logger) == nil {
+		// client still open
+		client.CleanTestDbData(ctx, logger)
+		client.CloseDbConnection(ctx)
+	}
 	logger.Info().Msg("Cleanup complete :)")
 }
 

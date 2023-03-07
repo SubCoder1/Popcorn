@@ -48,7 +48,10 @@ func main() {
 	// This object will be passed around internally for accessing the DB
 	dbConnWrp := db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
-	dbConnWrp.CheckDbConnection(ctx, logger)
+	if dbConnWrp.CheckDbConnection(ctx, logger) != nil {
+		// Db connection failure
+		os.Exit(5)
+	}
 
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
@@ -67,7 +70,9 @@ func main() {
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
 		logger.Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
-		logger.Error().Err(srv.ListenAndServe()).Msg("Error in ListenAndServe()")
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Fatal().Err(err).Msg("Error in ListenAndServe()")
+		}
 	}()
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions

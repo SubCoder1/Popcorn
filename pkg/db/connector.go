@@ -37,23 +37,30 @@ func (db *RedisDB) GetMaxRetries() int {
 }
 
 // Returns a new Redis DB connection wrapped up by RedisDB struct.
-func NewDbConnection(ctx context.Context, logger log.Logger) *RedisDB {
+func NewDbConnection(ctx context.Context, logger log.Logger) (*RedisDB, error) {
+	var dberr error
 	once.Do(func() {
 		addr := os.Getenv("REDIS_ADDR")
 		port := os.Getenv("REDIS_PORT")
 		pwd := os.Getenv("REDIS_PASSWORD")
 		if addr == "" || port == "" || pwd == "" {
-			logger.WithCtx(ctx).Fatal().Err(errors.New("improper Environment variables")).Msg("")
+			dberr = errors.New("improper Environment variables")
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Couldn't load env correctly in NewDbConnection")
+			return
 		}
 		dbNumber, prserr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_DB_NUMBER")))
 		if prserr != nil {
 			// Couldn't convert to int
 			logger.WithCtx(ctx).Fatal().Err(prserr).Msg("Couldn't parse ENV: REDIS_DB_NUMBER")
+			dberr = prserr
+			return
 		}
 		maxRetries, prserr := strconv.Atoi(strings.TrimSpace(os.Getenv("REDIS_TX_MAX_RETRIES")))
 		if prserr != nil {
 			// Couldn't convert to int
-			logger.WithCtx(ctx).Fatal().Err(prserr).Msg("Couldn't parse ENV: REDIS_TX_MAX_RETRIES")
+			logger.WithCtx(ctx).Error().Err(prserr).Msg("Couldn't parse ENV: REDIS_TX_MAX_RETRIES")
+			dberr = prserr
+			return
 		}
 
 		// Initializing a connection to Redis-server
@@ -65,7 +72,7 @@ func NewDbConnection(ctx context.Context, logger log.Logger) *RedisDB {
 		// Initializing globalDbClient once
 		globalDbClient = &RedisDB{client: client, txMaxRetries: maxRetries}
 	})
-	return globalDbClient
+	return globalDbClient, dberr
 }
 
 // Helper to check connection status of redis client to redis-server.

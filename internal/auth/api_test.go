@@ -111,9 +111,10 @@ func setup() {
 	// Logger
 	logger = log.New(version)
 	// Db client instance
-	client = db.NewDbConnection(ctx, logger)
+	var dberr error
+	client, dberr = db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
-	if client.CheckDbConnection(ctx, logger) != nil {
+	if dberr != nil || client.CheckDbConnection(ctx, logger) != nil {
 		// connection failure
 		os.Exit(6)
 	}

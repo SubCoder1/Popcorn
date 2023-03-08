@@ -46,11 +46,11 @@ func main() {
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
-	dbConnWrp := db.NewDbConnection(ctx, logger)
+	dbConnWrp, dberr := db.NewDbConnection(ctx, logger)
 	// Sending a PING request to DB for connection status check
-	if dbConnWrp.CheckDbConnection(ctx, logger) != nil {
+	if dberr != nil || dbConnWrp.CheckDbConnection(ctx, logger) != nil {
 		// Db connection failure
-		os.Exit(5)
+		os.Exit(6)
 	}
 
 	// Initializing validator

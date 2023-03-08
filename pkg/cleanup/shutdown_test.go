@@ -1,3 +1,5 @@
+// Graceful shutdown tests in Popcorn.
+
 package cleanup
 
 import (
@@ -44,7 +46,7 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	})
 }
 
-// Sets up resources before testing Auth APIs in Popcorn.
+// Sets up resources before testing graceful shutdown in Popcorn.
 func setup() {
 	// Initializing Resources before test run
 
@@ -61,7 +63,12 @@ func setup() {
 	logger = log.New(version)
 
 	// Db client instance
-	client = db.NewDbConnection(ctx, logger)
+	var dberr error
+	client, dberr = db.NewDbConnection(ctx, logger)
+	if dberr != nil || client.CheckDbConnection(ctx, logger) != nil {
+		// connection failure
+		os.Exit(6)
+	}
 	// Sending a PING request to DB for connection status check
 	client.CheckDbConnection(ctx, logger)
 

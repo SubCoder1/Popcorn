@@ -5,12 +5,18 @@ package entity
 // Information structure of Gangs in Popcorn.
 // Saved in DB as gang:<this.Admin>.
 type Gang struct {
-	Admin          string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
-	Name           string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
-	PassKey        string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
-	Limit          uint   `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
+	// Admin of the gang, i.e., the creator who has the control of doing anything in the Gang.
+	Admin string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
+	// Name of the gang, can be a duplicate.
+	Name string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	// Passkey of the gang making it private.
+	PassKey string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
+	// Gang Member Limit, minimum 2 and maximum 10.
+	Limit uint `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
+	// Consider this as a Foreign key to 'GangMembersList' struct, which keeps a list of all the members currently in this gang.
 	MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key" valid:"-"`
-	Created        int64  `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
+	// Gang Timestamp.
+	Created int64 `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
 }
 
 // Response structure of Gangs in Popcorn, typically used in get methods.
@@ -27,6 +33,7 @@ type GangResponse struct {
 
 // Saved in DB as gang-members:<members>.
 type GangMembersList struct {
+	// Stores the list of gang members currently in the gang.
 	MembersList []string `json:"gang_member_list,omitempty" redis:"gang_member_list" valid:"-"`
 }
 
@@ -49,8 +56,9 @@ type GangSearch struct {
 // GangInvite is stored in the format <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
 // Created_UNIX_Timestamp is converted into GangInvite.CreatedTimeAgo
 type GangInvite struct {
-	Admin          string `json:"gang_admin,omitempty" valid:"-"`
-	Name           string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	Admin string `json:"gang_admin,omitempty" valid:"-"`
+	Name  string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	// User to whom this invite is sent for
 	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
 	CreatedTimeAgo string `json:"invite_sent_timeago,omitempty" valid:"-"`
 }
@@ -60,5 +68,6 @@ type GangExit struct {
 	Member string `json:"member_name" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
 	Name   string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	Key    string `json:"-" valid:"-"`
-	Type   string `json:"-" valid:"in(leave|boot)"` // leave request from user, boot request from gang admin
+	// leave request from user, boot request from gang admin
+	Type string `json:"-" valid:"in(leave|boot)"`
 }

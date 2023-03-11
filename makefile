@@ -4,7 +4,7 @@
 BINARY_NAME = Popcorn
 
 # This line is to ensure the targets aren't considered as files.
-.PHONY: dev-load-env dev-build dev clean
+.PHONY: load-dev-env load-test-env dev-build dev test clean
 
 # This target loads development environment variables via dev.conf.
 load-dev-env:

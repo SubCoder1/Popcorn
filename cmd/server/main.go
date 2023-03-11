@@ -7,6 +7,7 @@ import (
 	"Popcorn/internal/auth"
 	"Popcorn/internal/errors"
 	"Popcorn/internal/gang"
+	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
@@ -105,24 +106,36 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	router.Use(middlewares.CorrelationMiddleware(logger)) // Fill up every request with unique CorrelationID
 	router.Use(middlewares.CORSMiddleware(addr))          // CORS middleware
 
-	// Create Repository instance which will be used internally being passed around through service params
+	// Initialize Repository instance which will be used internally being passed around through service params
 	authRepo := auth.NewRepository(dbConnWrp)
 	userRepo := user.NewRepository(dbConnWrp)
 	gangRepo := gang.NewRepository(dbConnWrp)
+	sseRepo := sse.NewRepository(dbConnWrp)
+
+	// Initialize internal Service instance
+	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
+	userService := user.NewService(userRepo, logger)
+	gangService := gang.NewService(gangRepo, userRepo, logger)
+	sseService := sse.NewService(sseRepo, logger)
+
+	// Launch SSE Listener in a seperate goroutine
+	event := sseService.GetOrSetEvent(ctx)
+	go sseService.Listen(ctx)
 
 	// Declare internal middlewares here
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "refresh_token", refSecret)
+	sseConnMiddleware := sse.SSEConnMiddleware(event, sseRepo, logger)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
-	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	auth.APIHandlers(router, authService, accAuthMiddleware, refAuthMiddleware, logger)
 	// Register internal package user handler
-	userService := user.NewService(userRepo, logger)
 	user.APIHandlers(router, userService, accAuthMiddleware, logger)
 	// Register internal package gang handler
-	gangService := gang.NewService(gangRepo, userRepo, logger)
 	gang.APIHandlers(router, gangService, accAuthMiddleware, logger)
+	// Register internal package sse handler
+	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
+
 	return router
 }

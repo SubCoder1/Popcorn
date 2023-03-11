@@ -1,3 +1,5 @@
+// sse repository encapsulates the data access logic (interactions with the DB) related to sse clients in Popcorn.
+
 package sse
 
 import (

@@ -21,7 +21,7 @@ type Repository interface {
 	DelToken(ctx context.Context, logger log.Logger, tokenUUID string) error
 }
 
-// repository struct of user Repository.
+// repository struct of auth Repository.
 // Object of this will be passed around from main to internal.
 // Helps to access the repository layer interface and call methods.
 type repository struct {

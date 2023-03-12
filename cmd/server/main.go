@@ -119,13 +119,13 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	sseService := sse.NewService(sseRepo, logger)
 
 	// Launch SSE Listener in a seperate goroutine
-	event := sseService.GetOrSetEvent(ctx)
+	sseService.GetOrSetEvent(ctx)
 	go sseService.Listen(ctx)
 
 	// Declare internal middlewares here
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "refresh_token", refSecret)
-	sseConnMiddleware := sse.SSEConnMiddleware(event, sseRepo, logger)
+	sseConnMiddleware := sse.SSEConnMiddleware(sseService, sseRepo, logger)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
@@ -133,7 +133,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Register internal package user handler
 	user.APIHandlers(router, userService, accAuthMiddleware, logger)
 	// Register internal package gang handler
-	gang.APIHandlers(router, gangService, accAuthMiddleware, logger)
+	gang.APIHandlers(router, gangService, sseService, accAuthMiddleware, logger)
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
 

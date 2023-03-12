@@ -5,32 +5,34 @@ package gang
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/sse"
 	"Popcorn/pkg/log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Registers all of the REST API handlers related to internal package gang onto the gin server.
-func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, logger log.Logger) {
-	gangGroup := router.Group("/api/gang", AuthWithAcc)
+func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service, authWithAcc gin.HandlerFunc, logger log.Logger) {
+	gangGroup := router.Group("/api/gang", authWithAcc)
 	{
-		gangGroup.GET("/search", searchGang(service, logger))
-		gangGroup.GET("/get", getGang(service, logger))
-		gangGroup.GET("/get/invites", getGangInvites(service, logger))
-		gangGroup.GET("/get/gang_members", getGangMembers(service, logger))
-		gangGroup.POST("/join", joinGang(service, logger))
-		gangGroup.POST("/create", createGang(service, logger))
-		gangGroup.POST("/send_invite", sendInvite(service, logger))
-		gangGroup.POST("/accept_invite", acceptInvite(service, logger))
-		gangGroup.POST("/reject_invite", rejectInvite(service, logger))
-		gangGroup.POST("/boot_member", bootMemberFromGang(service, logger))
+		gangGroup.GET("/search", searchGang(gangService, logger))
+		gangGroup.GET("/get", getGang(gangService, logger))
+		gangGroup.GET("/get/invites", getGangInvites(gangService, logger))
+		gangGroup.GET("/get/gang_members", getGangMembers(gangService, logger))
+		gangGroup.POST("/join", joinGang(gangService, logger))
+		gangGroup.POST("/create", createGang(gangService, logger))
+		gangGroup.POST("/send_invite", sendInvite(gangService, sseService, logger))
+		gangGroup.POST("/accept_invite", acceptInvite(gangService, logger))
+		gangGroup.POST("/reject_invite", rejectInvite(gangService, logger))
+		gangGroup.POST("/boot_member", bootMemberFromGang(gangService, logger))
 	}
 }
 
 // createGang returns a handler which takes care of creating gangs in Popcorn.
-func createGang(service Service, logger log.Logger) gin.HandlerFunc {
+func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		var gang entity.Gang
 
@@ -53,7 +55,7 @@ func createGang(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Apply the service logic for Create Gang in Popcorn
-		err := service.creategang(gctx, &gang)
+		err := gangService.creategang(gctx, &gang)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -69,7 +71,7 @@ func createGang(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // getGang returns a handler which takes care of getting user created or joined gangs in Popcorn.
-func getGang(service Service, logger log.Logger) gin.HandlerFunc {
+func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgang service
 		username, ok := gctx.Value("Username").(string)
@@ -78,7 +80,7 @@ func getGang(service Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		data, canCreate, canJoin, err := service.getgang(gctx, username)
+		data, canCreate, canJoin, err := gangService.getgang(gctx, username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -99,7 +101,7 @@ func getGang(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // getGangInvites returns a handler which takes care of getting received gang invites in Popcorn.
-func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
+func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getganginvites service
 		username, ok := gctx.Value("Username").(string)
@@ -108,7 +110,7 @@ func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangInvites")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		invites, err := service.getganginvites(gctx, username)
+		invites, err := gangService.getganginvites(gctx, username)
 
 		if err != nil {
 			// Error occured, might be validation or server error
@@ -128,7 +130,7 @@ func getGangInvites(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // getGangMembers returns a handler which takes care of getting a list of all the gang members in Popcorn.
-func getGangMembers(service Service, logger log.Logger) gin.HandlerFunc {
+func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgangmembers service
 		username, ok := gctx.Value("Username").(string)
@@ -137,7 +139,7 @@ func getGangMembers(service Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangMembers")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		membersList, err := service.getgangmembers(gctx, username)
+		membersList, err := gangService.getgangmembers(gctx, username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -155,7 +157,7 @@ func getGangMembers(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // joinGang returns a handler which takes care of joining a gang in Popcorn.
-func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
+func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		username, ok := gctx.Value("Username").(string)
@@ -173,7 +175,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		// Set gang-key which is of format gang:<gang_admin>
 		gangKey.Key = "gang:" + gangKey.Admin
-		err := service.joingang(gctx, username, gangKey)
+		err := gangService.joingang(gctx, username, gangKey)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -189,7 +191,7 @@ func joinGang(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // searchGang returns a handler which takes care of gang search in Popcorn.
-func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
+func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in searchgang service
 		username, ok := gctx.Value("Username").(string)
@@ -211,7 +213,7 @@ func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 		query.Name = gang_name
 		query.Cursor = cursor
 
-		response, newCursor, err := service.searchgang(gctx, query, username)
+		response, newCursor, err := gangService.searchgang(gctx, query, username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -230,7 +232,7 @@ func searchGang(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // sendInvite returns a handler which takes care of sending gang invite in Popcorn.
-func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
+func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the sendinvite service
 		username, ok := gctx.Value("Username").(string)
@@ -246,9 +248,11 @@ func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
-		// user should be the admin here
+		// User should be the admin here
 		gangInvite.Admin = username
-		err := service.sendganginvite(gctx, gangInvite)
+		// Set CreatedTimeAgo to now
+		gangInvite.CreatedTimeAgo = strconv.Itoa(int(time.Now().Unix()))
+		err := gangService.sendganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -259,12 +263,21 @@ func sendInvite(service Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
+		// Send notification to the receiver if active
+		go func() {
+			data := entity.SSEData{
+				Data: gangInvite,
+				Type: "gangInvite",
+				To:   gangInvite.For,
+			}
+			sseService.GetOrSetEvent(gctx).Message <- data
+		}()
 		gctx.Status(http.StatusOK)
 	}
 }
 
 // acceptInvite returns a handler which takes care of accepting gang invite in Popcorn.
-func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
+func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the acceptinvite service
 		username, ok := gctx.Value("Username").(string)
@@ -281,7 +294,7 @@ func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		gangInvite.For = username
-		err := service.acceptganginvite(gctx, gangInvite)
+		err := gangService.acceptganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -297,7 +310,7 @@ func acceptInvite(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // rejectInvite returns a handler which takes care of rejecting gang invite in Popcorn.
-func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
+func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the rejectinvite service
 		username, ok := gctx.Value("Username").(string)
@@ -314,7 +327,7 @@ func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		gangInvite.For = username
-		err := service.rejectganginvite(gctx, gangInvite)
+		err := gangService.rejectganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -330,7 +343,7 @@ func rejectInvite(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // Kicks a member out of a gang, triggered by gang Admin only
-func bootMemberFromGang(service Service, logger log.Logger) gin.HandlerFunc {
+func bootMemberFromGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the bootmember service
 		username, ok := gctx.Value("Username").(string)
@@ -347,7 +360,7 @@ func bootMemberFromGang(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 		boot.Key = "gang:" + username
 		boot.Type = "boot"
-		err := service.bootmember(gctx, boot)
+		err := gangService.bootmember(gctx, boot)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

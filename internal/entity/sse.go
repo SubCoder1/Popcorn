@@ -4,9 +4,10 @@ package entity
 
 // Data to be broadcasted to a client.
 type SSEData struct {
-	Message string `json:"message"`
-	From    string `json:"sender"`
-	To      string `json:"receiver"`
+	Data interface{} `json:"message"`
+	// Type is the type of Data instance, for example gangInvite request can be a type or gangJoin
+	Type string `json:"type"`
+	To   string `json:"-"`
 }
 
 // Uniquely defines an incoming client.

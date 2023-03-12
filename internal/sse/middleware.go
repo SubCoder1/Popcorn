@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SSEConnMiddleware(stream *entity.SSE, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
+func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		username, ok := gctx.Value("Username").(string)
@@ -34,12 +34,12 @@ func SSEConnMiddleware(stream *entity.SSE, sseRepo Repository, logger log.Logger
 		}
 
 		// Send new connection to event to store
-		stream.NewClients <- client
+		service.GetOrSetEvent(gctx).NewClients <- client
 
 		defer func() {
 			// Send closed connection to event server
 			logger.WithCtx(gctx).Info().Msg(fmt.Sprintf("Closing SSE connection : %s", client.ID))
-			stream.ClosedClients <- client
+			service.GetOrSetEvent(gctx).ClosedClients <- client
 		}()
 
 		gctx.Set("SSE", client)

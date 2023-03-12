@@ -4,18 +4,12 @@
 BINARY_NAME = Popcorn
 
 # This line is to ensure the targets aren't considered as files.
-.PHONY: load-dev-env load-test-env dev-build dev test clean
+.PHONY: load-dev-env dev-build dev test clean
 
 # This target loads development environment variables via dev.conf.
 load-dev-env:
 	@echo "Loading dev.env"
     include config/dev.env
-    export
-
-# This target loads test environment variables via test.conf.
-load-test-env:
-	@echo "Loading test.env"
-    include config/test.env
     export
 
 # This target starts db in development environment.
@@ -32,7 +26,7 @@ dev: dev-build
 	./${BINARY_NAME}.exe
 
 # Command to run all Popcorn tests.
-test: load-test-env
+test:
 	go test -v ./...
 
 # Clean up

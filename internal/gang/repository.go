@@ -536,8 +536,7 @@ func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invit
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.SendGangInvite")
 		return errors.InternalServerError("")
 	}
-	created := strconv.Itoa(int(time.Now().Unix()))
-	inviteIndex := fmt.Sprintf("%s:%s:%s", invite.Admin, invite.Name, created)
+	inviteIndex := fmt.Sprintf("%s:%s:%s", invite.Admin, invite.Name, invite.CreatedTimeAgo)
 	_, dberr = r.db.Client().ZAdd(ctx, invitesKey, &redis.Z{Score: float64(score + 1), Member: inviteIndex}).Result()
 	if dberr != nil {
 		// Error during interacting with DB

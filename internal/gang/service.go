@@ -19,7 +19,7 @@ type Service interface {
 	// Creates a gang in Popcorn.
 	creategang(ctx context.Context, gang *entity.Gang) error
 	// Get user created or joined gang data in Popcorn.
-	getgang(ctx context.Context, username string) ([]entity.GangResponse, bool, bool, error)
+	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
 	// Get gang invites received by user in Popcorn.
 	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
 	// Get list of gang members of user created gang in Popcorn.
@@ -105,9 +105,8 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	return nil
 }
 
-func (s service) getgang(ctx context.Context, username string) ([]entity.GangResponse, bool, bool, error) {
+func (s service) getgang(ctx context.Context, username string) (interface{}, bool, bool, error) {
 	// Get gang data from DB
-	data := []entity.GangResponse{}
 	canCreate := false
 	canJoin := false
 	// get gang details created by user (if any)(if any)
@@ -115,30 +114,24 @@ func (s service) getgang(ctx context.Context, username string) ([]entity.GangRes
 	gangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, username, false)
 	if dberr != nil {
 		// Error occured in GetGang()
-		return data, canCreate, canJoin, dberr
+		return entity.GangResponse{}, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
 	if (gangData != entity.GangResponse{}) {
-		data = append(data, gangData)
-	} else {
-		// User can create a gang
-		canCreate = true
+		return gangData, canCreate, canJoin, dberr
 	}
 	// get gang details joined by user (if any)
 	gangJoinedData, dberr := s.gangRepo.GetJoinedGang(ctx, s.logger, username)
 	if dberr != nil {
 		// Error occured in GetJoinedGang()
-		return data, canCreate, canJoin, dberr
+		return entity.GangResponse{}, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
 	if (gangJoinedData != entity.GangResponse{}) {
-		data = append(data, gangJoinedData)
-		canCreate = false
-	} else {
-		// User can join a gang if not created
-		canJoin = canCreate
+		return gangJoinedData, canCreate, canJoin, dberr
 	}
-	return data, canCreate, canJoin, nil
+	canCreate, canJoin = true, true
+	return struct{}{}, canCreate, canJoin, nil
 }
 
 func (s service) getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error) {

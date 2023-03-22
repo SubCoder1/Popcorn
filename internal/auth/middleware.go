@@ -5,6 +5,7 @@ package auth
 
 import (
 	"Popcorn/internal/errors"
+	"Popcorn/internal/user"
 	"Popcorn/pkg/log"
 	"fmt"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 // This middleware is used to verify and validate incoming JWT, TokenType can either be "access_token" or "refresh_token".
 // Access-Secret and Refresh-Secret will be used to parse access_token and refresh_token respectively.
 // Blocks the request to go further into other handlers if token is invalid.
-func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, secret string) gin.HandlerFunc {
+func AuthMiddleware(logger log.Logger, authRepo Repository, userRepo user.Repository, tokenType string, secret string) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Extract token from header
 		token := fetchTokenFromCookie(gctx, logger, tokenType)
@@ -82,9 +83,14 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, tokenType string, se
 				return
 			}
 		}
-		// Set UserID in request's context
-		// This pair will be used further down in the handler chain
-		gctx.Set("Username", username)
+		// Set User in request's context
+		// This object will be used further down in the handler chain
+		user, dberr := userRepo.GetUser(gctx, logger, username)
+		if dberr != nil {
+			// Error during DB interaction
+			gctx.AbortWithStatus(http.StatusInternalServerError)
+		}
+		gctx.Set("User", user)
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
 			gctx.Set("access_token", tokenUUID)

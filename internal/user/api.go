@@ -25,14 +25,14 @@ func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFun
 func getUser(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in searchuser service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		// Apply the service logic for Get User in Popcorn
-		user, err := service.getuser(gctx, username)
+		user, err := service.getuser(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

@@ -90,8 +90,8 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	authRepo := NewRepository(dbConnWrp)
 	userRepo = user.NewRepository(dbConnWrp)
 	// Middlewares used by auth APIs
-	accAuthMiddleware := AuthMiddleware(logger, authRepo, "access_token", mockAccSecret)
-	refAuthMiddleware := AuthMiddleware(logger, authRepo, "refresh_token", mockRefSecret)
+	accAuthMiddleware := AuthMiddleware(logger, authRepo, userRepo, "access_token", mockAccSecret)
+	refAuthMiddleware := AuthMiddleware(logger, authRepo, userRepo, "refresh_token", mockRefSecret)
 
 	// Register internal package auth handler
 	authService := NewService(mockAccSecret, mockRefSecret, userRepo, authRepo, logger)

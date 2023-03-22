@@ -22,7 +22,7 @@ func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service
 		gangGroup.GET("/get", getGang(gangService, logger))
 		gangGroup.GET("/get/invites", getGangInvites(gangService, logger))
 		gangGroup.GET("/get/gang_members", getGangMembers(gangService, logger))
-		gangGroup.POST("/join", joinGang(gangService, logger))
+		gangGroup.POST("/join", joinGang(gangService, sseService, logger))
 		gangGroup.POST("/create", createGang(gangService, logger))
 		gangGroup.POST("/send_invite", sendInvite(gangService, sseService, logger))
 		gangGroup.POST("/accept_invite", acceptInvite(gangService, logger))
@@ -45,14 +45,14 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Fetch username from context which will be used as the gang admin
-		var ok bool = true
-		gang.Admin, ok = gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
+		gang.Admin = user.Username
 
 		// Apply the service logic for Create Gang in Popcorn
 		err := gangService.creategang(gctx, &gang)
@@ -74,13 +74,13 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgang service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		data, canCreate, canJoin, err := gangService.getgang(gctx, username)
+		data, canCreate, canJoin, err := gangService.getgang(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -104,13 +104,13 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getganginvites service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangInvites")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		invites, err := gangService.getganginvites(gctx, username)
+		invites, err := gangService.getganginvites(gctx, user.Username)
 
 		if err != nil {
 			// Error occured, might be validation or server error
@@ -133,13 +133,13 @@ func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in getgangmembers service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangMembers")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		membersList, err := gangService.getgangmembers(gctx, username)
+		membersList, err := gangService.getgangmembers(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -157,10 +157,10 @@ func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // joinGang returns a handler which takes care of joining a gang in Popcorn.
-func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
+func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in joinGang")
@@ -175,7 +175,7 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		}
 		// Set gang-key which is of format gang:<gang_admin>
 		gangKey.Key = "gang:" + gangKey.Admin
-		err := gangService.joingang(gctx, username, gangKey)
+		err := gangService.joingang(gctx, user.Username, gangKey)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -186,6 +186,15 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
+		// Send notification to the gang page
+		go func() {
+			data := entity.SSEData{
+				Data: user,
+				Type: "gangJoin",
+				To:   gangKey.Admin,
+			}
+			sseService.GetOrSetEvent(gctx).Message <- data
+		}()
 		gctx.Status(http.StatusOK)
 	}
 }
@@ -194,7 +203,7 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used in searchgang service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
@@ -213,7 +222,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		query.Name = gang_name
 		query.Cursor = cursor
 
-		response, newCursor, err := gangService.searchgang(gctx, query, username)
+		response, newCursor, err := gangService.searchgang(gctx, query, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -235,7 +244,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the sendinvite service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendInvite")
@@ -249,7 +258,7 @@ func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) 
 			return
 		}
 		// User should be the admin here
-		gangInvite.Admin = username
+		gangInvite.Admin = user.Username
 		// Set CreatedTimeAgo to now
 		gangInvite.CreatedTimeAgo = time.Now().Unix()
 		err := gangService.sendganginvite(gctx, gangInvite)
@@ -280,7 +289,7 @@ func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) 
 func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the acceptinvite service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in acceptInvite")
@@ -293,7 +302,7 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
-		gangInvite.For = username
+		gangInvite.For = user.Username
 		err := gangService.acceptganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
@@ -313,7 +322,7 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the rejectinvite service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in rejectInvite")
@@ -326,7 +335,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
-		gangInvite.For = username
+		gangInvite.For = user.Username
 		err := gangService.rejectganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
@@ -346,7 +355,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 func bootMemberFromGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the bootmember service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
@@ -358,7 +367,7 @@ func bootMemberFromGang(gangService Service, logger log.Logger) gin.HandlerFunc 
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
-		boot.Key = "gang:" + username
+		boot.Key = "gang:" + user.Username
 		boot.Type = "boot"
 		err := gangService.bootmember(gctx, boot)
 		if err != nil {

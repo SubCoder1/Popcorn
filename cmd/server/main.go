@@ -123,8 +123,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	go sseService.Listen(ctx)
 
 	// Declare internal middlewares here
-	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "access_token", accSecret)
-	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, "refresh_token", refSecret)
+	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
+	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
 	sseConnMiddleware := sse.SSEConnMiddleware(sseService, sseRepo, logger)
 
 	// Register handlers of different internal packages in Popcorn

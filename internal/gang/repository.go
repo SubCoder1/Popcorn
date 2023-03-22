@@ -536,7 +536,7 @@ func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invit
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SCard() in gang.SendGangInvite")
 		return errors.InternalServerError("")
 	}
-	inviteIndex := fmt.Sprintf("%s:%s:%s", invite.Admin, invite.Name, invite.CreatedTimeAgo)
+	inviteIndex := fmt.Sprintf("%s:%s:%d", invite.Admin, invite.Name, invite.CreatedTimeAgo)
 	_, dberr = r.db.Client().ZAdd(ctx, invitesKey, &redis.Z{Score: float64(score + 1), Member: inviteIndex}).Result()
 	if dberr != nil {
 		// Error during interacting with DB
@@ -610,13 +610,13 @@ func extDataFromInviteIndex(ctx context.Context, logger log.Logger, inviteKey st
 	var invite entity.GangInvite
 	invite.Admin = slice[0]
 	invite.Name = slice[1]
-	created_unix, prserr := strconv.Atoi(slice[2])
+	var prserr error
+	invite.CreatedTimeAgo, prserr = strconv.ParseInt(slice[2], 10, 64)
 	if prserr != nil {
 		// Parsing error in strconv.Atoi()
 		logger.WithCtx(ctx).Error().Msg("Error during conversion of created_unix from inviteKey in extractGangInviteData()")
 		return entity.GangInvite{}, errors.InternalServerError("")
 	}
-	invite.CreatedTimeAgo = timeago.English.Format(time.Unix(int64(created_unix), 0))
 
 	return invite, nil
 }

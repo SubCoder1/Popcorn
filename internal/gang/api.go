@@ -251,7 +251,7 @@ func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) 
 		// User should be the admin here
 		gangInvite.Admin = username
 		// Set CreatedTimeAgo to now
-		gangInvite.CreatedTimeAgo = strconv.Itoa(int(time.Now().Unix()))
+		gangInvite.CreatedTimeAgo = time.Now().Unix()
 		err := gangService.sendganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error

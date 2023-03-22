@@ -68,6 +68,16 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		valerr := errors.New("gang:User cannot create more than 1 gang at a time")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
+	// Check if user has already joined a gang in Popcorn
+	joined, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang-joined:"+gang.Admin, "")
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if joined {
+		// User can only create or join a gang at a time.
+		valerr := errors.New("gang:User can only join or create a gang at a time.")
+		return errors.GenerateValidationErrorResponse([]error{valerr})
+	}
 
 	// Set gang creation timestamp
 	gang.Created = time.Now().Unix()
@@ -123,9 +133,10 @@ func (s service) getgang(ctx context.Context, username string) ([]entity.GangRes
 	// Don't send empty gang data
 	if (gangJoinedData != entity.GangResponse{}) {
 		data = append(data, gangJoinedData)
+		canCreate = false
 	} else {
-		// User can join a gang
-		canJoin = true
+		// User can join a gang if not created
+		canJoin = canCreate
 	}
 	return data, canCreate, canJoin, nil
 }
@@ -153,6 +164,27 @@ func (s service) getgangmembers(ctx context.Context, username string) ([]entity.
 }
 
 func (s service) joingang(ctx context.Context, username string, joinGangData entity.GangJoin) error {
+	// Check if user already has an unexpired gang created in Popcorn
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+username, "")
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if available {
+		// User cannot create more than 1 gang at a time
+		valerr := errors.New("gang:User can only join or create a gang at a time.")
+		return errors.GenerateValidationErrorResponse([]error{valerr})
+	}
+	// Check if user has already joined a gang in Popcorn
+	joined, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang-joined:"+username, "")
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if joined {
+		// User can only create or join a gang at a time.
+		valerr := errors.New("gang:User can only join or create a gang at a time.")
+		return errors.GenerateValidationErrorResponse([]error{valerr})
+	}
+
 	valerr := s.validateGangData(ctx, joinGangData)
 	if valerr != nil {
 		// Error occured during validation

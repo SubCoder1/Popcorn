@@ -41,7 +41,7 @@ func ssehandler(service Service, logger log.Logger) gin.HandlerFunc {
 					if !ok {
 						return false
 					}
-					gctx.SSEvent("message", msg)
+					gctx.SSEvent(msg.Type, msg)
 					return true
 				// Client exit
 				case <-gctx.Request.Context().Done():

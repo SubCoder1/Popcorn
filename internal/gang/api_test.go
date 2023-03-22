@@ -364,7 +364,7 @@ func TestGetGang(t *testing.T) {
 	assert.Nil(t, json.Unmarshal(response.Body, &gangData))
 	assert.True(t, len(gangData.Gang) == 1)
 	assert.False(t, gangData.CanCreate)
-	assert.True(t, gangData.CanJoin)
+	assert.False(t, gangData.CanJoin)
 }
 
 func TestGetGangInvites(t *testing.T) {

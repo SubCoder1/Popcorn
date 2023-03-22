@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/xeonx/timeago"
 )
 
 type Repository interface {
@@ -227,7 +225,6 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 
 	if len(gangResp.Name) != 0 {
 		// use timeago on gang_created
-		gangResp.CreatedTimeAgo = timeago.English.Format(time.Unix(gangResp.Created, 0))
 		gangResp.Count = int(joined_count)
 		gangResp.IsAdmin = username == gangResp.Admin
 	}

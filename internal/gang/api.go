@@ -25,9 +25,9 @@ func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service
 		gangGroup.POST("/join", joinGang(gangService, sseService, logger))
 		gangGroup.POST("/create", createGang(gangService, logger))
 		gangGroup.POST("/send_invite", sendInvite(gangService, sseService, logger))
-		gangGroup.POST("/accept_invite", acceptInvite(gangService, logger))
+		gangGroup.POST("/accept_invite", acceptInvite(gangService, sseService, logger))
 		gangGroup.POST("/reject_invite", rejectInvite(gangService, logger))
-		gangGroup.POST("/boot_member", bootMemberFromGang(gangService, logger))
+		gangGroup.POST("/boot_member", bootMember(gangService, sseService, logger))
 	}
 }
 
@@ -188,6 +188,7 @@ func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gi
 		}
 		// Send notification to the gang page
 		go func() {
+			user.Password = ""
 			data := entity.SSEData{
 				Data: user,
 				Type: "gangJoin",
@@ -286,7 +287,7 @@ func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) 
 }
 
 // acceptInvite returns a handler which takes care of accepting gang invite in Popcorn.
-func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
+func acceptInvite(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the acceptinvite service
 		user, ok := gctx.Value("User").(entity.User)
@@ -314,6 +315,16 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
+		// Send notification to the gang page
+		go func() {
+			user.Password = ""
+			data := entity.SSEData{
+				Data: user,
+				Type: "gangJoin",
+				To:   gangInvite.Admin,
+			}
+			sseService.GetOrSetEvent(gctx).Message <- data
+		}()
 		gctx.Status(http.StatusOK)
 	}
 }
@@ -352,7 +363,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // Kicks a member out of a gang, triggered by gang Admin only
-func bootMemberFromGang(gangService Service, logger log.Logger) gin.HandlerFunc {
+func bootMember(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the bootmember service
 		user, ok := gctx.Value("User").(entity.User)
@@ -380,6 +391,15 @@ func bootMemberFromGang(gangService Service, logger log.Logger) gin.HandlerFunc 
 			gctx.JSON(err.Status, err)
 			return
 		}
+		// Send notification to the kicked member
+		go func() {
+			data := entity.SSEData{
+				Data: boot,
+				Type: "gangBoot",
+				To:   boot.Member,
+			}
+			sseService.GetOrSetEvent(gctx).Message <- data
+		}()
 		gctx.Status(http.StatusOK)
 	}
 }

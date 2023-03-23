@@ -15,7 +15,7 @@ import (
 func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
-		username, ok := gctx.Value("Username").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in SSEConnMiddleware")
@@ -23,11 +23,11 @@ func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) g
 		}
 		// Initialize client
 		client := entity.SSEClient{
-			ID:      username,
+			ID:      user.Username,
 			Channel: make(chan entity.SSEData),
 		}
 		// Add the username into DB SSE Bucket
-		dberr := sseRepo.AddClient(gctx, logger, username)
+		dberr := sseRepo.AddClient(gctx, logger, user.Username)
 		if dberr != nil {
 			// Issue in AddClient
 			gctx.AbortWithStatus(http.StatusInternalServerError)
@@ -38,8 +38,10 @@ func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) g
 
 		defer func() {
 			// Send closed connection to event server
-			logger.WithCtx(gctx).Info().Msg(fmt.Sprintf("Closing SSE connection : %s", client.ID))
-			service.GetOrSetEvent(gctx).ClosedClients <- client
+			if service.GetOrSetEvent(gctx).TotalClients[client.ID] != nil {
+				logger.WithCtx(gctx).Info().Msg(fmt.Sprintf("Closing SSE connection : %s", client.ID))
+				service.GetOrSetEvent(gctx).ClosedClients <- client
+			}
 		}()
 
 		gctx.Set("SSE", client)

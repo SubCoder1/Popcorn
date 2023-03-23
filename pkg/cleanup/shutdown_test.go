@@ -122,11 +122,11 @@ func TestGracefulShutdownSIGINT(t *testing.T) {
 	}(logger)
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
-	wait := GracefulShutdown(ctx, logger, 5*time.Second, map[string]Operation{
-		"Redis-server": func(ctx context.Context) error {
+	wait := GracefulShutdown(ctx, logger, 5*time.Second, []Operation{
+		func(ctx context.Context) error {
 			return client.CloseDbConnection(ctx)
 		},
-		"Gin": func(ctx context.Context) error {
+		func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
 		},
 	})
@@ -153,11 +153,11 @@ func TestGracefulShutdownSIGTERM(t *testing.T) {
 	}()
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
-	wait := GracefulShutdown(ctx, logger, 5*time.Second, map[string]Operation{
-		"Redis-server": func(ctx context.Context) error {
+	wait := GracefulShutdown(ctx, logger, 5*time.Second, []Operation{
+		func(ctx context.Context) error {
 			return client.CloseDbConnection(ctx)
 		},
-		"Gin": func(ctx context.Context) error {
+		func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
 		},
 	})

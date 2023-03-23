@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -18,7 +17,7 @@ import (
 type Operation func(ctx context.Context) error
 
 // GracefulShutdown function waits for termination system-calls and performs clean-up operations.
-func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Duration, operations map[string]Operation) <-chan bool {
+func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Duration, operations []Operation) <-chan bool {
 	wait := make(chan bool)
 
 	go func() {
@@ -36,23 +35,12 @@ func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Durat
 		})
 		defer force.Stop()
 
-		// Executing the cleanup operations asynchronously for better performance
-		var wg sync.WaitGroup
-
-		for opname, op := range operations {
-			// Adding task to be executed asynchronously
-			wg.Add(1)
-			go func(opname string, op Operation) {
-				defer wg.Done()
-				logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Shutting down: %s", opname))
-				if err := op(ctx); err != nil {
-					logger.WithCtx(ctx).Fatal().Err(err)
-				}
-				logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("%s shutdown completed.", opname))
-			}(opname, op)
+		for _, op := range operations {
+			if err := op(ctx); err != nil {
+				logger.WithCtx(ctx).Fatal().Err(err)
+			}
 		}
-		// Wait for all of the tasks to finish
-		wg.Wait()
+
 		close(wait)
 	}()
 

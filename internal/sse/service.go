@@ -33,11 +33,15 @@ func NewService(sseRepo Repository, logger log.Logger) Service {
 // Global Instance of entity.SSE initialized via GetOrSetEvent().
 var event *entity.SSE
 
+// Quit signal to force close SSE channels before server shutdown
+var quit chan bool
+
 // sync.Once singleton is used to make sure event instantiation is done only once.
 var once sync.Once
 
 func (s service) GetOrSetEvent(ctx context.Context) *entity.SSE {
 	once.Do(func() {
+		quit = make(chan bool)
 		event = &entity.SSE{
 			Message:       make(chan entity.SSEData),
 			NewClients:    make(chan entity.SSEClient),
@@ -50,7 +54,7 @@ func (s service) GetOrSetEvent(ctx context.Context) *entity.SSE {
 }
 
 func (s service) Listen(ctx context.Context) {
-	for {
+	for quit != nil {
 		select {
 		// Add new available client
 		case client := <-s.GetOrSetEvent(ctx).NewClients:
@@ -69,4 +73,10 @@ func (s service) Listen(ctx context.Context) {
 			s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] <- eventMsg
 		}
 	}
+}
+
+func Cleanup(ctx context.Context) error {
+	// This quit signal will close open stream API connectionsaaa
+	close(quit)
+	return nil
 }

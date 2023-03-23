@@ -46,6 +46,9 @@ func ssehandler(service Service, logger log.Logger) gin.HandlerFunc {
 				// Client exit
 				case <-gctx.Request.Context().Done():
 					return false
+				// Server force-close
+				case <-quit:
+					return false
 				}
 			}
 		})

@@ -36,6 +36,10 @@ type Service interface {
 	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
 	// kicks a member out of a gang
 	bootmember(ctx context.Context, boot entity.GangExit) error
+	// leave a gang
+	leavegang(ctx context.Context, boot entity.GangExit) error
+	// delete a gang before expiry
+	delgang(ctx context.Context, admin string) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -235,6 +239,17 @@ func (s service) acceptganginvite(ctx context.Context, invite entity.GangInvite)
 	return s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
 }
 
+func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
+	joinedGang, dberr := s.gangRepo.GetJoinedGang(ctx, s.logger, boot.Member)
+	if dberr != nil {
+		// Error in GetJoinedGang()
+		return dberr
+	}
+	boot.Name = joinedGang.Name
+	boot.Key = "gang:" + joinedGang.Admin
+	return s.bootmember(ctx, boot)
+}
+
 func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite) error {
 	valerr := s.validateGangData(ctx, invite)
 	if valerr != nil {
@@ -255,6 +270,10 @@ func (s service) bootmember(ctx context.Context, boot entity.GangExit) error {
 		return valerr
 	}
 	return s.gangRepo.LeaveGang(ctx, s.logger, boot)
+}
+
+func (s service) delgang(ctx context.Context, admin string) error {
+	return s.gangRepo.DelGang(ctx, s.logger, admin)
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

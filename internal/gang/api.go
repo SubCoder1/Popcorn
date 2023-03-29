@@ -22,12 +22,14 @@ func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service
 		gangGroup.GET("/get", getGang(gangService, logger))
 		gangGroup.GET("/get/invites", getGangInvites(gangService, logger))
 		gangGroup.GET("/get/gang_members", getGangMembers(gangService, logger))
-		gangGroup.POST("/join", joinGang(gangService, sseService, logger))
 		gangGroup.POST("/create", createGang(gangService, logger))
+		gangGroup.POST("/join", joinGang(gangService, sseService, logger))
+		gangGroup.POST("/leave", leaveGang(gangService, sseService, logger))
 		gangGroup.POST("/send_invite", sendInvite(gangService, sseService, logger))
 		gangGroup.POST("/accept_invite", acceptInvite(gangService, sseService, logger))
 		gangGroup.POST("/reject_invite", rejectInvite(gangService, logger))
 		gangGroup.POST("/boot_member", bootMember(gangService, sseService, logger))
+		gangGroup.POST("/delete", delGang(gangService, logger))
 	}
 }
 
@@ -200,6 +202,34 @@ func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gi
 	}
 }
 
+// leaveGang returns a handler which takes care of leaving a gang in Popcorn.
+func leaveGang(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the leavegang service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in leaveGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		var boot entity.GangExit
+		boot.Member = user.Username
+		boot.Type = "leave"
+		err := gangService.leavegang(gctx, boot)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
 // searchGang returns a handler which takes care of gang search in Popcorn.
 func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
@@ -362,7 +392,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	}
 }
 
-// Kicks a member out of a gang, triggered by gang Admin only
+// bootMember returns a handler which takes care of booting member from a gang in Popcorn.
 func bootMember(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the bootmember service
@@ -400,6 +430,31 @@ func bootMember(gangService Service, sseService sse.Service, logger log.Logger) 
 			}
 			sseService.GetOrSetEvent(gctx).Message <- data
 		}()
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// delGang returns a handler which takes care of deleting a gang from Popcorn before expiry.
+func delGang(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the delgang service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		err := gangService.delgang(gctx, user.Username)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
 		gctx.Status(http.StatusOK)
 	}
 }

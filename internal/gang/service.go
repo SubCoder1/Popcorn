@@ -5,9 +5,11 @@ package gang
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/log"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -25,13 +27,13 @@ type Service interface {
 	// Get list of gang members of user created gang in Popcorn.
 	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
-	joingang(ctx context.Context, username string, joinGangData entity.GangJoin) error
+	joingang(ctx context.Context, user entity.User, joinGangData entity.GangJoin) error
 	// Search for a gang
 	searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error)
 	// Send gang invite to an user
 	sendganginvite(ctx context.Context, invite entity.GangInvite) error
 	// Accept gang invite for an user
-	acceptganginvite(ctx context.Context, invite entity.GangInvite) error
+	acceptganginvite(ctx context.Context, user entity.User, invite entity.GangInvite) error
 	// Reject gang invite for an user
 	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
 	// kicks a member out of a gang
@@ -46,14 +48,15 @@ type Service interface {
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	gangRepo Repository
-	userRepo user.Repository
-	logger   log.Logger
+	gangRepo   Repository
+	userRepo   user.Repository
+	sseService sse.Service
+	logger     log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(gangRepo Repository, userRepo user.Repository, logger log.Logger) Service {
-	return service{gangRepo, userRepo, logger}
+func NewService(gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
+	return service{gangRepo, userRepo, sseService, logger}
 }
 
 func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
@@ -160,9 +163,9 @@ func (s service) getgangmembers(ctx context.Context, username string) ([]entity.
 	return members, nil
 }
 
-func (s service) joingang(ctx context.Context, username string, joinGangData entity.GangJoin) error {
+func (s service) joingang(ctx context.Context, user entity.User, joinGangData entity.GangJoin) error {
 	// Check if user already has an unexpired gang created in Popcorn
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+username, "")
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+user.Username, "")
 	if dberr != nil {
 		// Error occured in HasGang()
 		return dberr
@@ -172,7 +175,7 @@ func (s service) joingang(ctx context.Context, username string, joinGangData ent
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 	// Check if user has already joined a gang in Popcorn
-	joined, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang-joined:"+username, "")
+	joined, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang-joined:"+user.Username, "")
 	if dberr != nil {
 		// Error occured in HasGang()
 		return dberr
@@ -196,11 +199,21 @@ func (s service) joingang(ctx context.Context, username string, joinGangData ent
 		// Passkey didn't match
 		return errors.Unauthorized("PassKey didn't match")
 	}
-	dberr = s.gangRepo.JoinGang(ctx, s.logger, joinGangData, username)
+	dberr = s.gangRepo.JoinGang(ctx, s.logger, joinGangData, user.Username)
 	if dberr != nil {
 		// Error occured in JoinGang()
 		return dberr
 	}
+	// Send notification to the gang page
+	go func() {
+		user.Password = ""
+		data := entity.SSEData{
+			Data: user,
+			Type: "gangJoin",
+			To:   joinGangData.Admin,
+		}
+		s.sseService.GetOrSetEvent(ctx).Message <- data
+	}()
 	return nil
 }
 
@@ -223,10 +236,19 @@ func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) e
 	if invite.Admin == invite.For {
 		return errors.BadRequest("Invalid Gang Invite")
 	}
+	// Send notification to the receiver if active
+	go func() {
+		data := entity.SSEData{
+			Data: invite,
+			Type: "gangInvite",
+			To:   invite.For,
+		}
+		s.sseService.GetOrSetEvent(ctx).Message <- data
+	}()
 	return s.gangRepo.SendGangInvite(ctx, s.logger, invite)
 }
 
-func (s service) acceptganginvite(ctx context.Context, invite entity.GangInvite) error {
+func (s service) acceptganginvite(ctx context.Context, user entity.User, invite entity.GangInvite) error {
 	valerr := s.validateGangData(ctx, invite)
 	if valerr != nil {
 		// Error occured during validation
@@ -236,6 +258,16 @@ func (s service) acceptganginvite(ctx context.Context, invite entity.GangInvite)
 	if invite.Admin == invite.For {
 		return errors.BadRequest("Invalid Gang Invite")
 	}
+	// Send notification to the gang page
+	go func() {
+		user.Password = ""
+		data := entity.SSEData{
+			Data: user,
+			Type: "gangJoin",
+			To:   invite.Admin,
+		}
+		s.sseService.GetOrSetEvent(ctx).Message <- data
+	}()
 	return s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
 }
 
@@ -247,7 +279,31 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 	}
 	boot.Name = joinedGang.Name
 	boot.Key = "gang:" + joinedGang.Admin
-	return s.bootmember(ctx, boot)
+	dberr = s.bootmember(ctx, boot)
+	if dberr != nil {
+		// Error in bootmember()
+		return dberr
+	}
+	// Send notification to gang members
+	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, joinedGang.Admin)
+	if dberr == nil {
+		var wg sync.WaitGroup
+		for _, member := range members {
+			member := member
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				data := entity.SSEData{
+					Data: boot.Member,
+					Type: "gangLeave",
+					To:   member,
+				}
+				s.sseService.GetOrSetEvent(ctx).Message <- data
+			}()
+		}
+		wg.Wait()
+	}
+	return nil
 }
 
 func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite) error {
@@ -269,6 +325,15 @@ func (s service) bootmember(ctx context.Context, boot entity.GangExit) error {
 		// Error occured during validation
 		return valerr
 	}
+	// Send notification to the kicked member
+	go func() {
+		data := entity.SSEData{
+			Data: boot,
+			Type: "gangBoot",
+			To:   boot.Member,
+		}
+		s.sseService.GetOrSetEvent(ctx).Message <- data
+	}()
 	return s.gangRepo.LeaveGang(ctx, s.logger, boot)
 }
 

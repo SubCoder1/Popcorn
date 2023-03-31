@@ -118,8 +118,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Initialize internal Service instance
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
-	gangService := gang.NewService(gangRepo, userRepo, logger)
 	sseService := sse.NewService(sseRepo, logger)
+	gangService := gang.NewService(gangRepo, userRepo, sseService, logger)
 
 	// Launch SSE Listener in a seperate goroutine
 	sseService.GetOrSetEvent(ctx)
@@ -136,7 +136,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Register internal package user handler
 	user.APIHandlers(router, userService, accAuthMiddleware, logger)
 	// Register internal package gang handler
-	gang.APIHandlers(router, gangService, sseService, accAuthMiddleware, logger)
+	gang.APIHandlers(router, gangService, accAuthMiddleware, logger)
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
 

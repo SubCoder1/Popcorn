@@ -5,7 +5,6 @@ package gang
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
-	"Popcorn/internal/sse"
 	"Popcorn/pkg/log"
 	"net/http"
 	"strconv"
@@ -15,7 +14,7 @@ import (
 )
 
 // Registers all of the REST API handlers related to internal package gang onto the gin server.
-func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service, authWithAcc gin.HandlerFunc, logger log.Logger) {
+func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.HandlerFunc, logger log.Logger) {
 	gangGroup := router.Group("/api/gang", authWithAcc)
 	{
 		gangGroup.GET("/search", searchGang(gangService, logger))
@@ -23,12 +22,12 @@ func APIHandlers(router *gin.Engine, gangService Service, sseService sse.Service
 		gangGroup.GET("/get/invites", getGangInvites(gangService, logger))
 		gangGroup.GET("/get/gang_members", getGangMembers(gangService, logger))
 		gangGroup.POST("/create", createGang(gangService, logger))
-		gangGroup.POST("/join", joinGang(gangService, sseService, logger))
-		gangGroup.POST("/leave", leaveGang(gangService, sseService, logger))
-		gangGroup.POST("/send_invite", sendInvite(gangService, sseService, logger))
-		gangGroup.POST("/accept_invite", acceptInvite(gangService, sseService, logger))
+		gangGroup.POST("/join", joinGang(gangService, logger))
+		gangGroup.POST("/leave", leaveGang(gangService, logger))
+		gangGroup.POST("/send_invite", sendInvite(gangService, logger))
+		gangGroup.POST("/accept_invite", acceptInvite(gangService, logger))
 		gangGroup.POST("/reject_invite", rejectInvite(gangService, logger))
-		gangGroup.POST("/boot_member", bootMember(gangService, sseService, logger))
+		gangGroup.POST("/boot_member", bootMember(gangService, logger))
 		gangGroup.POST("/delete", delGang(gangService, logger))
 	}
 }
@@ -159,7 +158,7 @@ func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // joinGang returns a handler which takes care of joining a gang in Popcorn.
-func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		user, ok := gctx.Value("User").(entity.User)
@@ -177,7 +176,7 @@ func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gi
 		}
 		// Set gang-key which is of format gang:<gang_admin>
 		gangKey.Key = "gang:" + gangKey.Admin
-		err := gangService.joingang(gctx, user.Username, gangKey)
+		err := gangService.joingang(gctx, user, gangKey)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -188,22 +187,12 @@ func joinGang(gangService Service, sseService sse.Service, logger log.Logger) gi
 			gctx.JSON(err.Status, err)
 			return
 		}
-		// Send notification to the gang page
-		go func() {
-			user.Password = ""
-			data := entity.SSEData{
-				Data: user,
-				Type: "gangJoin",
-				To:   gangKey.Admin,
-			}
-			sseService.GetOrSetEvent(gctx).Message <- data
-		}()
 		gctx.Status(http.StatusOK)
 	}
 }
 
 // leaveGang returns a handler which takes care of leaving a gang in Popcorn.
-func leaveGang(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+func leaveGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the leavegang service
 		user, ok := gctx.Value("User").(entity.User)
@@ -272,7 +261,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // sendInvite returns a handler which takes care of sending gang invite in Popcorn.
-func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+func sendInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the sendinvite service
 		user, ok := gctx.Value("User").(entity.User)
@@ -303,21 +292,12 @@ func sendInvite(gangService Service, sseService sse.Service, logger log.Logger) 
 			gctx.JSON(err.Status, err)
 			return
 		}
-		// Send notification to the receiver if active
-		go func() {
-			data := entity.SSEData{
-				Data: gangInvite,
-				Type: "gangInvite",
-				To:   gangInvite.For,
-			}
-			sseService.GetOrSetEvent(gctx).Message <- data
-		}()
 		gctx.Status(http.StatusOK)
 	}
 }
 
 // acceptInvite returns a handler which takes care of accepting gang invite in Popcorn.
-func acceptInvite(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the acceptinvite service
 		user, ok := gctx.Value("User").(entity.User)
@@ -334,7 +314,7 @@ func acceptInvite(gangService Service, sseService sse.Service, logger log.Logger
 			return
 		}
 		gangInvite.For = user.Username
-		err := gangService.acceptganginvite(gctx, gangInvite)
+		err := gangService.acceptganginvite(gctx, user, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -345,16 +325,6 @@ func acceptInvite(gangService Service, sseService sse.Service, logger log.Logger
 			gctx.JSON(err.Status, err)
 			return
 		}
-		// Send notification to the gang page
-		go func() {
-			user.Password = ""
-			data := entity.SSEData{
-				Data: user,
-				Type: "gangJoin",
-				To:   gangInvite.Admin,
-			}
-			sseService.GetOrSetEvent(gctx).Message <- data
-		}()
 		gctx.Status(http.StatusOK)
 	}
 }
@@ -393,7 +363,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // bootMember returns a handler which takes care of booting member from a gang in Popcorn.
-func bootMember(gangService Service, sseService sse.Service, logger log.Logger) gin.HandlerFunc {
+func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the bootmember service
 		user, ok := gctx.Value("User").(entity.User)
@@ -421,15 +391,6 @@ func bootMember(gangService Service, sseService sse.Service, logger log.Logger) 
 			gctx.JSON(err.Status, err)
 			return
 		}
-		// Send notification to the kicked member
-		go func() {
-			data := entity.SSEData{
-				Data: boot,
-				Type: "gangBoot",
-				To:   boot.Member,
-			}
-			sseService.GetOrSetEvent(gctx).Message <- data
-		}()
 		gctx.Status(http.StatusOK)
 	}
 }

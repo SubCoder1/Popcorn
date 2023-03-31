@@ -122,9 +122,9 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	sseRepo := sse.NewRepository(dbConnWrp)
 
 	// Register internal package gang handler
-	gangService := NewService(gangRepo, userRepo, logger)
 	sseService := sse.NewService(sseRepo, logger)
-	APIHandlers(mockRouter, gangService, sseService, test.MockAuthMiddleware(logger), logger)
+	gangService := NewService(gangRepo, userRepo, sseService, logger)
+	APIHandlers(mockRouter, gangService, test.MockAuthMiddleware(logger), logger)
 }
 
 // Helper to register list of gang to avoid repetition in tests below

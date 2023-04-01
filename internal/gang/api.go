@@ -380,7 +380,7 @@ func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 		}
 		boot.Key = "gang:" + user.Username
 		boot.Type = "boot"
-		err := gangService.bootmember(gctx, boot)
+		err := gangService.bootmember(gctx, user.Username, boot)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

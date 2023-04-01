@@ -9,7 +9,6 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/log"
 	"context"
-	"sync"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -37,7 +36,7 @@ type Service interface {
 	// Reject gang invite for an user
 	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
 	// kicks a member out of a gang
-	bootmember(ctx context.Context, boot entity.GangExit) error
+	bootmember(ctx context.Context, username string, boot entity.GangExit) error
 	// leave a gang
 	leavegang(ctx context.Context, boot entity.GangExit) error
 	// delete a gang before expiry
@@ -279,7 +278,7 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 	}
 	boot.Name = joinedGang.Name
 	boot.Key = "gang:" + joinedGang.Admin
-	dberr = s.bootmember(ctx, boot)
+	dberr = s.gangRepo.LeaveGang(ctx, s.logger, boot)
 	if dberr != nil {
 		// Error in bootmember()
 		return dberr
@@ -287,21 +286,16 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 	// Send notification to gang members
 	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, joinedGang.Admin)
 	if dberr == nil {
-		var wg sync.WaitGroup
 		for _, member := range members {
-			member := member
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			go func(member string) {
 				data := entity.SSEData{
 					Data: boot.Member,
 					Type: "gangLeave",
 					To:   member,
 				}
 				s.sseService.GetOrSetEvent(ctx).Message <- data
-			}()
+			}(member)
 		}
-		wg.Wait()
 	}
 	return nil
 }
@@ -319,7 +313,7 @@ func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite)
 	return s.gangRepo.DelGangInvite(ctx, s.logger, invite)
 }
 
-func (s service) bootmember(ctx context.Context, boot entity.GangExit) error {
+func (s service) bootmember(ctx context.Context, username string, boot entity.GangExit) error {
 	valerr := s.validateGangData(ctx, boot)
 	if valerr != nil {
 		// Error occured during validation
@@ -334,6 +328,20 @@ func (s service) bootmember(ctx context.Context, boot entity.GangExit) error {
 		}
 		s.sseService.GetOrSetEvent(ctx).Message <- data
 	}()
+	// Send notification to gang members
+	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, username)
+	if dberr == nil {
+		for _, member := range members {
+			go func(member string) {
+				data := entity.SSEData{
+					Data: boot.Member,
+					Type: "gangLeave",
+					To:   member,
+				}
+				s.sseService.GetOrSetEvent(ctx).Message <- data
+			}(member)
+		}
+	}
 	return s.gangRepo.LeaveGang(ctx, s.logger, boot)
 }
 

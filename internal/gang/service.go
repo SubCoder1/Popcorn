@@ -128,7 +128,7 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 	if gang.PassKey == "" {
 		// Just to pass validation
 		gang.PassKey = "PREVIOUSPASSKEY"
-	} else {
+	} else if len(gang.PassKey) >= 5 {
 		// Encrypt gang passkey
 		hashedgangpk, hasherr := s.generatePassKeyHash(ctx, gang.PassKey)
 		if hasherr != nil {

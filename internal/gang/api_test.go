@@ -345,7 +345,7 @@ func TestGetGang(t *testing.T) {
 		PassKey: "12345",
 		Limit:   2,
 	}
-	_, dberr := gangRepo.SetOrUpdateGang(ctx, logger, &testGang)
+	_, dberr := gangRepo.SetOrUpdateGang(ctx, logger, &testGang, false)
 	if dberr != nil {
 		// Issues in SetOrUpdateGang()
 		t.Fail()

@@ -19,7 +19,7 @@ type Repository interface {
 	// HasGang returns a boolean depending on gang's availability.
 	HasGang(ctx context.Context, logger log.Logger, gangKey string, gangName string) (bool, error)
 	// SetOrUpdateGang adds or updates the gang data into the DB.
-	SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error)
+	SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang, update bool) (bool, error)
 	// DelGang deletes the gang data from the DB.
 	DelGang(ctx context.Context, logger log.Logger, admin string) error
 	// GetGang fetches created gang data from DB.
@@ -84,13 +84,13 @@ func (r repository) HasGang(ctx context.Context, logger log.Logger, gangKey stri
 }
 
 // Returns true if gang got successfully added into the DB.
-func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang) (bool, error) {
+func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang *entity.Gang, update bool) (bool, error) {
 	// Checking if an gang with admin gang.Admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+gang.Admin, "")
 	if dberr != nil {
 		// Issues in Exists()
 		return false, dberr
-	} else if available {
+	} else if available && !update {
 		return false, errors.BadRequest("Gang already exists")
 	}
 	gangKey := "gang:" + gang.Admin
@@ -100,10 +100,15 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
 				client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
 				client.HSet(ctx, gangKey, "gang_name", gang.Name)
-				client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
+				if !update || (update && gang.PassKey != "PREVIOUSPASSKEY") {
+					// Only used during createGang or when passKey is being updated
+					client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
+				}
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
 				client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
-				client.HSet(ctx, gangKey, "gang_created", gang.Created)
+				if !update {
+					client.HSet(ctx, gangKey, "gang_created", gang.Created)
+				}
 				return nil
 			})
 			return dberr
@@ -125,19 +130,21 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 		logger.WithCtx(ctx).Error().Err(txferr).Msg("Error occured in SetUser transaction")
 		return false, errors.InternalServerError("")
 	}
-	// Set gang:index -> gang:<gang.Admin>:<gang.Name> as index for quicker search
-	gangIndex := fmt.Sprintf("gang:%s:%s", gang.Admin, gang.Name)
-	_, dberr = r.db.Client().SAdd(ctx, "gang:index", gangIndex).Result()
-	if dberr != nil {
-		// Issues in SAdd()
-		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during setting gang index")
-		return false, errors.InternalServerError("")
-	}
-	// Set gang-members:<member>
-	err := r.SetGangMembers(ctx, logger, gang.MembersListKey, gang.Admin)
-	if err != nil {
-		// Issues in SetGangMembers
-		return false, err
+	if !update {
+		// Set gang:index -> gang:<gang.Admin>:<gang.Name> as index for quicker search
+		gangIndex := fmt.Sprintf("gang:%s:%s", gang.Admin, gang.Name)
+		_, dberr = r.db.Client().SAdd(ctx, "gang:index", gangIndex).Result()
+		if dberr != nil {
+			// Issues in SAdd()
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during setting gang index")
+			return false, errors.InternalServerError("")
+		}
+		// Set gang-members:<member>
+		err := r.SetGangMembers(ctx, logger, gang.MembersListKey, gang.Admin)
+		if err != nil {
+			// Issues in SetGangMembers
+			return false, err
+		}
 	}
 	return true, nil
 }

@@ -22,6 +22,7 @@ func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.Handle
 		gangGroup.GET("/get/invites", getGangInvites(gangService, logger))
 		gangGroup.GET("/get/gang_members", getGangMembers(gangService, logger))
 		gangGroup.POST("/create", createGang(gangService, logger))
+		gangGroup.POST("/update", updateGang(gangService, logger))
 		gangGroup.POST("/join", joinGang(gangService, logger))
 		gangGroup.POST("/leave", leaveGang(gangService, logger))
 		gangGroup.POST("/send_invite", sendInvite(gangService, logger))
@@ -57,6 +58,45 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 
 		// Apply the service logic for Create Gang in Popcorn
 		err := gangService.creategang(gctx, &gang)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// updateGang returns a handler which takes care of updating user created gang in Popcorn.
+func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		var gang entity.Gang
+
+		// Serialize received data into User struct
+		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
+			// Error occured during serialization
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+
+		// Fetch username from context which will be used as the gang admin
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
+		}
+		gang.Admin = user.Username
+
+		// Apply the service logic for Update Gang in Popcorn
+		err := gangService.updategang(gctx, &gang)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

@@ -19,6 +19,8 @@ import (
 type Service interface {
 	// Creates a gang in Popcorn.
 	creategang(ctx context.Context, gang *entity.Gang) error
+	// Updates a gang in Popcorn.
+	updategang(ctx context.Context, gang *entity.Gang) error
 	// Get user created or joined gang data in Popcorn.
 	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
 	// Get gang invites received by user in Popcorn.
@@ -36,7 +38,7 @@ type Service interface {
 	// Reject gang invite for an user
 	rejectganginvite(ctx context.Context, invite entity.GangInvite) error
 	// kicks a member out of a gang
-	bootmember(ctx context.Context, username string, boot entity.GangExit) error
+	bootmember(ctx context.Context, admin string, boot entity.GangExit) error
 	// leave a gang
 	leavegang(ctx context.Context, boot entity.GangExit) error
 	// delete a gang before expiry
@@ -97,7 +99,7 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	gang.PassKey = hashedgangpk
 
 	// Save gang data in DB
-	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang)
+	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, false)
 	if dberr != nil {
 		err, ok := dberr.(errors.ErrorResponse)
 		if ok && err.StatusCode() == 400 {
@@ -109,6 +111,54 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	}
 
 	return nil
+}
+
+func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
+	// Check if user already has an unexpired gang created in Popcorn
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+gang.Admin, "")
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if !available {
+		// User doesn't have their own gang to update
+		valerr := errors.New("gang:User haven't created a gang")
+		return errors.GenerateValidationErrorResponse([]error{valerr})
+	}
+
+	if gang.PassKey == "" {
+		// Just to pass validation
+		gang.PassKey = "PREVIOUSPASSKEY"
+	} else {
+		// Encrypt gang passkey
+		hashedgangpk, hasherr := s.generatePassKeyHash(ctx, gang.PassKey)
+		if hasherr != nil {
+			return hasherr
+		}
+		gang.PassKey = hashedgangpk
+	}
+	valerr := s.validateGangData(ctx, gang)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, true)
+	if dberr == nil {
+		// Send notifications to gang Members about the updates
+		members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
+		if dberr == nil {
+			for _, member := range members {
+				go func(member string) {
+					data := entity.SSEData{
+						Data: nil,
+						Type: "gangUpdate",
+						To:   member,
+					}
+					s.sseService.GetOrSetEvent(ctx).Message <- data
+				}(member)
+			}
+		}
+	}
+	return dberr
 }
 
 func (s service) getgang(ctx context.Context, username string) (interface{}, bool, bool, error) {
@@ -313,11 +363,18 @@ func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite)
 	return s.gangRepo.DelGangInvite(ctx, s.logger, invite)
 }
 
-func (s service) bootmember(ctx context.Context, username string, boot entity.GangExit) error {
+func (s service) bootmember(ctx context.Context, admin string, boot entity.GangExit) error {
 	valerr := s.validateGangData(ctx, boot)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
+	}
+	// Send notification to gang members
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+	dberr := s.gangRepo.LeaveGang(ctx, s.logger, boot)
+	if dberr != nil {
+		// Error in LeaveGang()
+		return dberr
 	}
 	// Send notification to the kicked member
 	go func() {
@@ -328,25 +385,38 @@ func (s service) bootmember(ctx context.Context, username string, boot entity.Ga
 		}
 		s.sseService.GetOrSetEvent(ctx).Message <- data
 	}()
-	// Send notification to gang members
-	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, username)
-	if dberr == nil {
-		for _, member := range members {
-			go func(member string) {
-				data := entity.SSEData{
-					Data: boot.Member,
-					Type: "gangLeave",
-					To:   member,
-				}
-				s.sseService.GetOrSetEvent(ctx).Message <- data
-			}(member)
-		}
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: boot.Member,
+				Type: "gangLeave",
+				To:   member,
+			}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
 	}
-	return s.gangRepo.LeaveGang(ctx, s.logger, boot)
+	return nil
 }
 
 func (s service) delgang(ctx context.Context, admin string) error {
-	return s.gangRepo.DelGang(ctx, s.logger, admin)
+	// Send notification to gang members
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+	dberr := s.gangRepo.DelGang(ctx, s.logger, admin)
+	if dberr != nil {
+		// Error in DelGang()
+		return dberr
+	}
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: nil,
+				Type: "gangDelete",
+				To:   member,
+			}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
+	return nil
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.

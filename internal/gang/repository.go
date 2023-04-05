@@ -98,15 +98,15 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 		txf := func(tx *redis.Tx) error {
 			// Operation is commited only if the watched keys remain unchanged
 			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
-				client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
 				client.HSet(ctx, gangKey, "gang_name", gang.Name)
 				if !update || (update && gang.PassKey != "PREVIOUSPASSKEY") {
 					// Only used during createGang or when passKey is being updated
 					client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
 				}
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
-				client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
 				if !update {
+					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
+					client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
 					client.HSet(ctx, gangKey, "gang_created", gang.Created)
 				}
 				return nil

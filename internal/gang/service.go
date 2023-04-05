@@ -254,15 +254,17 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 		return dberr
 	}
 	// Send notification to the gang page
-	go func() {
-		user.Password = ""
-		data := entity.SSEData{
-			Data: user,
-			Type: "gangJoin",
-			To:   joinGangData.Admin,
-		}
-		s.sseService.GetOrSetEvent(ctx).Message <- data
-	}()
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, joinGangData.Admin)
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: user.Username,
+				Type: "gangJoin",
+				To:   member,
+			}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
 	return nil
 }
 

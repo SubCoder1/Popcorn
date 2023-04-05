@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type Service interface {
@@ -54,7 +55,7 @@ func (s service) GetOrSetEvent(ctx context.Context) *entity.SSE {
 }
 
 func (s service) Listen(ctx context.Context) {
-	for quit != nil {
+	for {
 		select {
 		// Add new available client
 		case client := <-s.GetOrSetEvent(ctx).NewClients:
@@ -76,7 +77,13 @@ func (s service) Listen(ctx context.Context) {
 }
 
 func Cleanup(ctx context.Context) error {
-	// This quit signal will close open stream API connectionsaaa
+	// This quit signal will close open stream API connections
 	close(quit)
+	go func(event *entity.SSE) {
+		time.Sleep(1 * time.Second)
+		close(event.Message)
+		close(event.ClosedClients)
+		close(event.NewClients)
+	}(event)
 	return nil
 }

@@ -21,16 +21,16 @@ func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) g
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in SSEConnMiddleware")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		// Initialize client
-		client := entity.SSEClient{
-			ID:      user.Username,
-			Channel: make(chan entity.SSEData),
-		}
 		// Add the username into DB SSE Bucket
 		dberr := sseRepo.AddClient(gctx, logger, user.Username)
 		if dberr != nil {
 			// Issue in AddClient
 			gctx.AbortWithStatus(http.StatusInternalServerError)
+		}
+		// Initialize client
+		client := entity.SSEClient{
+			ID:      user.Username,
+			Channel: make(chan entity.SSEData),
 		}
 
 		// Send new connection to event to store

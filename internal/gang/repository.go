@@ -23,7 +23,7 @@ type Repository interface {
 	// DelGang deletes the gang data from the DB.
 	DelGang(ctx context.Context, logger log.Logger, admin string) error
 	// GetGang fetches created gang data from DB.
-	GetGang(ctx context.Context, logger log.Logger, admin string, username string, existCheck bool) (entity.GangResponse, error)
+	GetGang(ctx context.Context, logger log.Logger, gangKey string, username string, existCheck bool) (entity.GangResponse, error)
 	// GetGangPassKey fetches PassKey Hash for a gang, should be used before JoinGang.
 	GetGangPassKey(ctx context.Context, logger log.Logger, gangKey entity.GangJoin) (string, error)
 	// GetJoinedGang fetches joined gang data from DB.

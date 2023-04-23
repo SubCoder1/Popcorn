@@ -68,3 +68,8 @@ type GangExit struct {
 	// leave request from user, boot request from gang admin
 	Type string `json:"-" valid:"in(leave|boot)"`
 }
+
+// Used to bind and validate incoming gang conversations in Popcorn.
+type GangMessage struct {
+	Message string `json:"message" valid:"required,type(string),printableascii"`
+}

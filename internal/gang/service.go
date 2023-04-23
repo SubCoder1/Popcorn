@@ -43,6 +43,8 @@ type Service interface {
 	leavegang(ctx context.Context, boot entity.GangExit) error
 	// delete a gang before expiry
 	delgang(ctx context.Context, admin string) error
+	// send incoming message to gang members
+	sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -142,21 +144,22 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		return valerr
 	}
 	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, true)
-	if dberr == nil {
-		// Send notifications to gang Members about the updates
-		members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
-		if dberr == nil {
-			for _, member := range members {
-				go func(member string) {
-					data := entity.SSEData{
-						Data: nil,
-						Type: "gangUpdate",
-						To:   member,
-					}
-					s.sseService.GetOrSetEvent(ctx).Message <- data
-				}(member)
+	if dberr != nil {
+		// Error in SetOrUpdateGang()
+		return dberr
+	}
+	// Send notifications to gang Members about the updates
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
+	for _, member := range members {
+		member := member
+		go func() {
+			data := entity.SSEData{
+				Data: nil,
+				Type: "gangUpdate",
+				To:   member,
 			}
-		}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}()
 	}
 	return dberr
 }
@@ -258,7 +261,7 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 	for _, member := range members {
 		go func(member string) {
 			data := entity.SSEData{
-				Data: user.Username,
+				Data: user,
 				Type: "gangJoin",
 				To:   member,
 			}
@@ -309,17 +312,26 @@ func (s service) acceptganginvite(ctx context.Context, user entity.User, invite 
 	if invite.Admin == invite.For {
 		return errors.BadRequest("Invalid Gang Invite")
 	}
+
+	dberr := s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
+	if dberr != nil {
+		// Error in AcceptGangInvite()
+		return dberr
+	}
 	// Send notification to the gang page
-	go func() {
-		user.Password = ""
-		data := entity.SSEData{
-			Data: user,
-			Type: "gangJoin",
-			To:   invite.Admin,
-		}
-		s.sseService.GetOrSetEvent(ctx).Message <- data
-	}()
-	return s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, invite.Admin)
+	user.Password = ""
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: user,
+				Type: "gangJoin",
+				To:   member,
+			}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
+	return nil
 }
 
 func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
@@ -416,6 +428,58 @@ func (s service) delgang(ctx context.Context, admin string) error {
 				To:   member,
 			}
 			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
+	return nil
+}
+
+func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error {
+	valerr := s.validateGangData(ctx, msg)
+	if valerr != nil {
+		// Error occured during validation
+		return valerr
+	}
+	// get gang key to fetch the list of gang members using GetGang or GetJoinedGang
+	gang, dberr := s.gangRepo.GetGang(ctx, s.logger, "gang:"+user.Username, user.Username, true)
+	if dberr != nil {
+		// Error in GetGang()
+		return dberr
+	} else if (gang == entity.GangResponse{}) {
+		// check using getJoinedGang
+		gang, dberr = s.gangRepo.GetJoinedGang(ctx, s.logger, user.Username)
+		if dberr != nil {
+			// Error in GetJoinedGang()
+			return dberr
+		} else if (gang == entity.GangResponse{}) {
+			return errors.BadRequest("User needs to create or join a gang.")
+		}
+	}
+	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
+	if dberr != nil {
+		// Error in GetGangMembers()
+		return dberr
+	}
+	// Send received message to members
+	for _, member := range members {
+		go func(member string) {
+			// Don't send this message to the sender
+			if user.Username != member {
+				data := entity.SSEData{
+					Data: struct {
+						Text string `json:"text"`
+						User struct {
+							Username   string `json:"username"`
+							ProfilePic string `json:"user_profile_pic"`
+						} `json:"user"`
+					}{msg.Message, struct {
+						Username   string `json:"username"`
+						ProfilePic string `json:"user_profile_pic"`
+					}{user.Username, user.ProfilePic}},
+					Type: "gangMessage",
+					To:   member,
+				}
+				s.sseService.GetOrSetEvent(ctx).Message <- data
+			}
 		}(member)
 	}
 	return nil

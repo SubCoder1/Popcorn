@@ -461,9 +461,9 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 	}
 	// Send received message to members
 	for _, member := range members {
-		go func(member string) {
-			// Don't send this message to the sender
-			if user.Username != member {
+		if user.Username != member {
+			go func(member string) {
+				// Don't send this message to the sender
 				data := entity.SSEData{
 					Data: struct {
 						Text string `json:"text"`
@@ -479,8 +479,8 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 					To:   member,
 				}
 				s.sseService.GetOrSetEvent(ctx).Message <- data
-			}
-		}(member)
+			}(member)
+		}
 	}
 	return nil
 }

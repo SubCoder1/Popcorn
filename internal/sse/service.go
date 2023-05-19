@@ -64,8 +64,8 @@ func (s service) Listen(ctx context.Context) {
 
 		// Remove closed client
 		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
-			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
 			close(client.Channel)
+			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
 			s.sseRepo.RemoveClient(ctx, s.logger, client.ID)
 			s.logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Removed client %s from Popcorn SSE event channel", client.ID))
 

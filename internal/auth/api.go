@@ -188,7 +188,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch Username from context
-		username, ok := gctx.Value("Username").(string)
+		username, ok := gctx.Value("User").(string)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in refresh_token")

@@ -8,6 +8,7 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/internal/gang"
 	"Popcorn/internal/sse"
+	"Popcorn/internal/storage"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/db"
@@ -65,8 +66,10 @@ func main() {
 	srvaddr, srvport := os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")
 	// Running the server with defined addr and port.
 	srv := &http.Server{
-		Addr:    srvaddr + ":" + srvport,
-		Handler: setupRouter(ctx, dbConnWrp, logger),
+		Addr:         srvaddr + ":" + srvport,
+		Handler:      setupRouter(ctx, dbConnWrp, logger),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
@@ -137,6 +140,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	gang.APIHandlers(router, gangService, accAuthMiddleware, logger)
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
+	// Register tusd file storage handler route
+	storage.APIHandlers(router, gangRepo, accAuthMiddleware, logger)
 
 	return router
 }

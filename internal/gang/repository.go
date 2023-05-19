@@ -108,6 +108,10 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
 					client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
 					client.HSet(ctx, gangKey, "gang_created", gang.Created)
+				} else if len(gang.ContentID) != 0 && len(gang.ContentName) != 0 {
+					// These values are only updated through server
+					client.HSet(ctx, gangKey, "gang_content_name", gang.ContentName)
+					client.HSet(ctx, gangKey, "gang_content_ID", gang.ContentID)
 				}
 				return nil
 			})
@@ -311,7 +315,7 @@ func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, usern
 	return membersList, nil
 }
 
-// Leaves the current joined gang
+// Leaves the current joined gang.
 func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entity.GangExit) error {
 	// Checking if a gang with gangKey and same gangName exists in the DB
 	available, dberr := r.HasGang(ctx, logger, boot.Key, boot.Name)
@@ -590,7 +594,7 @@ func (r repository) delGangIndex(ctx context.Context, logger log.Logger, index s
 	return nil
 }
 
-// Helper to extract gangKey from gang index
+// Helper to extract gangKey from gang index.
 func extDataFromGangIndex(ctx context.Context, logger log.Logger, gangIndex string) (string, string, error) {
 	slice := strings.Split(gangIndex, ":")
 	if len(slice) != 3 {
@@ -603,7 +607,7 @@ func extDataFromGangIndex(ctx context.Context, logger log.Logger, gangIndex stri
 	return gangKey, gangName, nil
 }
 
-// Helper to extract GangInvite metadata from invite key
+// Helper to extract GangInvite metadata from invite key.
 func extDataFromInviteIndex(ctx context.Context, logger log.Logger, inviteKey string) (entity.GangInvite, error) {
 	slice := strings.Split(inviteKey, ":")
 	if len(slice) != 3 {

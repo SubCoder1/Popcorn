@@ -12,8 +12,9 @@ func CORSMiddleware(addr string) gin.HandlerFunc {
 		gctx.Writer.Header().Set("Access-Control-Allow-Origin", addr)
 		gctx.Writer.Header().Set("Vary", "Origin")
 		gctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		gctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		gctx.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		gctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Upload-Offset, Location, Upload-Length, Tus-Version, Tus-Resumable, Tus-Max-Size, Tus-Extension, Upload-Metadata, Upload-Defer-Length, Upload-Concat, X-Request-ID")
+		gctx.Writer.Header().Set("Access-Control-Allow-Methods", "HEAD, PATCH, POST, OPTIONS, GET, PUT, DELETE")
+		gctx.Writer.Header().Set("Access-Control-Expose-Headers", "Upload-Offset, Location, Upload-Length, Tus-Version, Tus-Resumable, Tus-Max-Size, Tus-Extension, Upload-Metadata, Upload-Defer-Length, Upload-Concat, Location, Upload-Offset, Upload-Length")
 
 		if gctx.Request.Method == "OPTIONS" {
 			gctx.AbortWithStatus(http.StatusNoContent)

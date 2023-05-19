@@ -17,17 +17,22 @@ type Gang struct {
 	MembersListKey string `json:"gang_members_key,omitempty" redis:"gang_members_key" valid:"-"`
 	// Gang Timestamp.
 	Created int64 `json:"gang_created,omitempty" redis:"gang_created" valid:"-"`
+	// Gang Content filename.
+	ContentName string `json:"-" redis:"gang_content_name" valid:"-"`
+	// Gang Content file ID.
+	ContentID string `json:"-" redis:"gang_content_ID" valid:"-"`
 }
 
 // Response structure of Gangs in Popcorn, typically used in get methods.
 // Used to send gang data to client.
 type GangResponse struct {
-	Admin   string `json:"gang_admin,omitempty" redis:"gang_admin"`
-	Name    string `json:"gang_name" redis:"gang_name"`
-	Limit   uint   `json:"gang_member_limit" redis:"gang_member_limit"`
-	IsAdmin bool   `json:"is_admin"`
-	Count   int    `json:"gang_members_count"`
-	Created int64  `json:"gang_created,omitempty" redis:"gang_created"`
+	Admin       string `json:"gang_admin,omitempty" redis:"gang_admin"`
+	Name        string `json:"gang_name" redis:"gang_name"`
+	Limit       uint   `json:"gang_member_limit" redis:"gang_member_limit"`
+	IsAdmin     bool   `json:"is_admin"`
+	Count       int    `json:"gang_members_count"`
+	Created     int64  `json:"gang_created,omitempty" redis:"gang_created"`
+	ContentName string `json:"gang_content_name" redis:"gang_content_name"`
 }
 
 // Saved in DB as gang-members:<members>.

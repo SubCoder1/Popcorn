@@ -9,6 +9,7 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/log"
 	"context"
+	"os"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -45,6 +46,8 @@ type Service interface {
 	delgang(ctx context.Context, admin string) error
 	// send incoming message to gang members
 	sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error
+	// delete gang content
+	deletecontent(ctx context.Context, admin string, gangName string) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -413,9 +416,16 @@ func (s service) bootmember(ctx context.Context, admin string, boot entity.GangE
 }
 
 func (s service) delgang(ctx context.Context, admin string) error {
+	gangKey := "gang:" + admin
+	oldGangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, false)
+	if dberr != nil {
+		// Error occured in GetGang()
+		return dberr
+	}
+	deleteContent("./uploads/"+oldGangData.ContentID, s.logger)
 	// Send notification to gang members
 	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
-	dberr := s.gangRepo.DelGang(ctx, s.logger, admin)
+	dberr = s.gangRepo.DelGang(ctx, s.logger, admin)
 	if dberr != nil {
 		// Error in DelGang()
 		return dberr
@@ -485,6 +495,30 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 	return nil
 }
 
+func (s service) deletecontent(ctx context.Context, admin string, gangName string) error {
+	gangKey := "gang:" + admin
+	available, dberr := s.gangRepo.HasGang(ctx, s.logger, gangKey, gangName)
+	if dberr != nil {
+		// Error occured in HasGang()
+		return dberr
+	} else if !available {
+		return errors.NotFound("Missing or invalid gang")
+	}
+	oldGangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, true)
+	if dberr != nil {
+		// Error occured in GetGang()
+		return dberr
+	}
+	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, "", "")
+	if dberr != nil {
+		// Error occured in EraseGangContentData()
+		return dberr
+	}
+	deleteContent("./uploads/"+oldGangData.ContentID, s.logger)
+
+	return nil
+}
+
 // Helper to validate the user data against validation-tags mentioned in its entity.
 func (s service) validateGangData(ctx context.Context, gang interface{}) error {
 	_, valerr := govalidator.ValidateStruct(gang)
@@ -511,4 +545,19 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
 	return err == nil
+}
+
+// Helper method to delete file due to any issues found during or post upload
+func deleteContent(filepath string, logger log.Logger) error {
+	oserr := os.Remove(filepath)
+	if oserr != nil {
+		logger.Error().Err(oserr).Msg("Error occured during deleting content file")
+		return errors.InternalServerError("Couldn't delete content")
+	}
+	oserr = os.Remove(filepath + ".info")
+	if oserr != nil {
+		logger.Error().Err(oserr).Msg("Error occured during deleting content info file")
+		return errors.InternalServerError("Couldn't delete content")
+	}
+	return nil
 }

@@ -31,6 +31,7 @@ func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.Handle
 		gangGroup.POST("/boot_member", bootMember(gangService, logger))
 		gangGroup.POST("/delete", delGang(gangService, logger))
 		gangGroup.POST("/send_msg", sendMessage(gangService, logger))
+		gangGroup.POST("/delete_content", delContent(gangService, logger))
 	}
 }
 
@@ -478,6 +479,39 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		err := gangService.sendmessage(gctx, msg, user)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// delContent returns a handler which takes care of removing uploaded content.
+func delContent(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the deletecontent service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		gangName := struct {
+			GangName string `json:"gang_name"`
+		}{}
+		if binderr := gctx.ShouldBindJSON(&gangName); binderr != nil {
+			// Error occured during serialization
+			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			return
+		}
+		err := gangService.deletecontent(gctx, user.Username, gangName.GangName)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

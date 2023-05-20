@@ -3,11 +3,11 @@
 package storage
 
 import (
-	"Popcorn/internal/entity"
 	"Popcorn/internal/gang"
 	"Popcorn/pkg/log"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 
@@ -83,24 +83,10 @@ func GetTusdStorageHandler(gangRepo gang.Repository, logger log.Logger) *tusd.Un
 				}
 
 				user := hook.HTTPRequest.Header.Get("User")
-				gangKey := "gang:" + user
-				oldGangData, dberr := gangRepo.GetGang(context.Background(), logger, gangKey, user, true)
+				fmt.Println(hook.Upload.MetaData["filename"], hook.Upload.ID)
+				dberr := gangRepo.UpdateGangContentData(context.Background(), logger, user, hook.Upload.MetaData["filename"], hook.Upload.ID)
 				if dberr != nil {
-					// Error occured in GetGang()
-					return tusd.NewHTTPError(errors.New("internal server error"), 500)
-				}
-				newGangData := entity.Gang{
-					Admin:       oldGangData.Admin,
-					Name:        oldGangData.Name,
-					PassKey:     "PREVIOUSPASSKEY",
-					Limit:       oldGangData.Limit,
-					Created:     oldGangData.Created,
-					ContentName: hook.Upload.MetaData["filename"],
-					ContentID:   hook.Upload.ID,
-				}
-				_, dberr = gangRepo.SetOrUpdateGang(context.Background(), logger, &newGangData, true)
-				if dberr != nil {
-					// Error occured in SetOrUpdateGang()
+					// Error occured in EraseGangContentData()
 					return tusd.NewHTTPError(errors.New("internal server error"), 500)
 				}
 				return nil
@@ -122,15 +108,3 @@ func GetTusdStorageHandler(gangRepo gang.Repository, logger log.Logger) *tusd.Un
 
 	return handler
 }
-
-// // Helper method to delete file due to any issues found during or post upload
-// func deleteContent(filepath string, logger log.Logger) {
-// 	oserr := os.Remove(filepath)
-// 	if oserr != nil {
-// 		logger.Error().Err(oserr).Msg("Error occured during deleting content file")
-// 	}
-// 	oserr = os.Remove(filepath + ".info")
-// 	if oserr != nil {
-// 		logger.Error().Err(oserr).Msg("Error occured during deleting content info file")
-// 	}
-// }

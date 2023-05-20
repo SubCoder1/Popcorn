@@ -44,6 +44,8 @@ type Repository interface {
 	SendGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// AcceptGangInvite accepts the invite request and joins the requested gang.
 	AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
+	// UpdateGangContentData updates content filename and ID from gang data.
+	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string) error
 }
 
 // repository struct of gang Repository.
@@ -581,6 +583,47 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 		PassKey: "joiningThroughInvite",
 	}
 	return r.JoinGang(ctx, logger, *gangJoin, invite.For)
+}
+
+// Deletes gang content ID and filename from gang data.
+func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string) error {
+	// Checking if an gang with admin exists in the DB
+	available, dberr := r.HasGang(ctx, logger, "gang:"+admin, "")
+	if dberr != nil {
+		// Issues in Exists()
+		return dberr
+	} else if !available {
+		return errors.BadRequest("Gang doesn't exist")
+	}
+	gangKey := "gang:" + admin
+	txferr := func(key string) error {
+		txf := func(tx *redis.Tx) error {
+			// Operation is commited only if the watched keys remain unchanged
+			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
+				client.HSet(ctx, gangKey, "gang_content_name", content_name)
+				client.HSet(ctx, gangKey, "gang_content_ID", content_ID)
+				return nil
+			})
+			return dberr
+		}
+		for i := 0; i < r.db.GetMaxRetries(); i++ {
+			dberr := r.db.Client().Watch(ctx, txf, key)
+			if dberr == nil {
+				return nil
+			} else if dberr == redis.TxFailedErr {
+				// Optimistic lock lost. Retry.
+				continue
+			}
+			// Return any other error.
+			return dberr
+		}
+		return errors.New("increment reached maximum number of retries")
+	}(gangKey)
+	if txferr != nil {
+		logger.WithCtx(ctx).Error().Err(txferr).Msg("Error occured in EraseGangContentData transaction")
+		return errors.InternalServerError("")
+	}
+	return nil
 }
 
 // Helper to delete expired gang index from DB.

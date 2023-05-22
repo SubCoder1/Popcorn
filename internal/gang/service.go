@@ -46,8 +46,6 @@ type Service interface {
 	delgang(ctx context.Context, admin string) error
 	// send incoming message to gang members
 	sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error
-	// delete gang content
-	deletecontent(ctx context.Context, admin string, gangName string) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -492,30 +490,6 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 			}(member)
 		}
 	}
-	return nil
-}
-
-func (s service) deletecontent(ctx context.Context, admin string, gangName string) error {
-	gangKey := "gang:" + admin
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, gangKey, gangName)
-	if dberr != nil {
-		// Error occured in HasGang()
-		return dberr
-	} else if !available {
-		return errors.NotFound("Missing or invalid gang")
-	}
-	oldGangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, true)
-	if dberr != nil {
-		// Error occured in GetGang()
-		return dberr
-	}
-	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, "", "")
-	if dberr != nil {
-		// Error occured in EraseGangContentData()
-		return dberr
-	}
-	deleteContent("./uploads/"+oldGangData.ContentID, s.logger)
-
 	return nil
 }
 

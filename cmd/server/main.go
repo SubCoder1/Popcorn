@@ -66,10 +66,8 @@ func main() {
 	srvaddr, srvport := os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")
 	// Running the server with defined addr and port.
 	srv := &http.Server{
-		Addr:         srvaddr + ":" + srvport,
-		Handler:      setupRouter(ctx, dbConnWrp, logger),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:    srvaddr + ":" + srvport,
+		Handler: setupRouter(ctx, dbConnWrp, logger),
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
@@ -130,6 +128,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
 	sseConnMiddleware := sse.SSEConnMiddleware(sseService, sseRepo, logger)
+	tusAuthMiddleware := storage.ValidateGangAdminMiddleware(logger, gangRepo)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
@@ -141,7 +140,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
 	// Register tusd file storage handler route
-	storage.APIHandlers(router, gangRepo, accAuthMiddleware, logger)
+	storage_handler := storage.GetTusdStorageHandler(gangRepo, sseService, logger)
+	storage.APIHandlers(router, storage_handler, accAuthMiddleware, tusAuthMiddleware, logger)
 
 	return router
 }

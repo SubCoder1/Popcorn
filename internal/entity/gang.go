@@ -33,7 +33,7 @@ type GangResponse struct {
 	Count       int    `json:"gang_members_count"`
 	Created     int64  `json:"gang_created,omitempty" redis:"gang_created"`
 	ContentName string `json:"gang_content_name" redis:"gang_content_name"`
-	ContentID   string `json:"-" redis:"gang_content_ID"`
+	ContentID   string `json:"gang_content_ID" redis:"gang_content_ID"`
 }
 
 // Saved in DB as gang-members:<members>.

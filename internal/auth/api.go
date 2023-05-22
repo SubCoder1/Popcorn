@@ -188,7 +188,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch Username from context
-		username, ok := gctx.Value("User").(string)
+		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in refresh_token")
@@ -196,7 +196,7 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		// Generate fresh pair of JWT for user
-		token, err := service.refreshtoken(gctx, username)
+		token, err := service.refreshtoken(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

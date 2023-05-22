@@ -24,3 +24,13 @@ func CORSMiddleware(addr string) gin.HandlerFunc {
 		gctx.Next()
 	}
 }
+
+// This middleware is used to add response headers for Server-Side-Events (SSE) to work properly.
+func SSEMiddleware() gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		gctx.Writer.Header().Set("Content-Type", "text/event-stream")
+		gctx.Writer.Header().Set("Cache-Control", "no-cache")
+		gctx.Writer.Header().Set("Connection", "keep-alive")
+		gctx.Next()
+	}
+}

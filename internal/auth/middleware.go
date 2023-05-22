@@ -91,7 +91,6 @@ func AuthMiddleware(logger log.Logger, authRepo Repository, userRepo user.Reposi
 			gctx.AbortWithStatus(http.StatusInternalServerError)
 		}
 		gctx.Set("User", user)
-		gctx.Request.Header.Add("User", user.Username) // For tusd
 		// Set User's accessToken which might be useful during logout
 		if tokenType == "access_token" {
 			gctx.Set("access_token", tokenUUID)

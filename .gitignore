@@ -13,3 +13,6 @@
 
 # tusd storage
 uploads/*
+
+# Secrets env file
+config/secrets.env

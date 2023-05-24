@@ -16,19 +16,19 @@ import (
 var domain string = os.Getenv("SRV_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
-func APIHandlers(router *gin.Engine, service Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
+func APIHandlers(router *gin.Engine, authService Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
 	authGroup := router.Group("/api/auth")
 	{
 		authGroup.GET("/validate_token", AuthWithAcc)
-		authGroup.POST("/register", register(service, logger))
-		authGroup.POST("/login", login(service, logger))
-		authGroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(service, logger))
-		authGroup.POST("/refresh_token", AuthWithRef, refresh_token(service, logger))
+		authGroup.POST("/register", register(authService, logger))
+		authGroup.POST("/login", login(authService, logger))
+		authGroup.POST("/logout", AuthWithAcc, AuthWithRef, logout(authService, logger))
+		authGroup.POST("/refresh_token", AuthWithRef, refresh_token(authService, logger))
 	}
 }
 
 // register returns a handler which takes care of user registration in Popcorn.
-func register(service Service, logger log.Logger) gin.HandlerFunc {
+func register(authService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		var user entity.User
 
@@ -41,7 +41,7 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Apply the service logic for User registration in Popcorn
-		token, err := service.register(gctx, user)
+		token, err := authService.register(gctx, user)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -84,7 +84,7 @@ func register(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // login returns a handler which takes care of user login in Popcorn.
-func login(service Service, logger log.Logger) gin.HandlerFunc {
+func login(authService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		var user entity.UserLogin
 
@@ -97,7 +97,7 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 		}
 
 		// Apply the service logic for User login in Popcorn
-		token, err := service.login(gctx, user)
+		token, err := authService.login(gctx, user)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -140,9 +140,9 @@ func login(service Service, logger log.Logger) gin.HandlerFunc {
 }
 
 // Logout returns a handler which takes care of user logout from Popcorn.
-func logout(service Service, logger log.Logger) gin.HandlerFunc {
+func logout(authService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
-		err := service.logout(gctx)
+		err := authService.logout(gctx)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -185,7 +185,7 @@ func logout(service Service, logger log.Logger) gin.HandlerFunc {
 
 // refresh_token returns a handler which takes care of refreshing JWT for users in Popcorn.
 // Incoming request should pass AuthMiddleware in order for this handler to work.
-func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
+func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch Username from context
 		user, ok := gctx.Value("User").(entity.User)
@@ -196,7 +196,7 @@ func refresh_token(service Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		// Generate fresh pair of JWT for user
-		token, err := service.refreshtoken(gctx, user.Username)
+		token, err := authService.refreshtoken(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)

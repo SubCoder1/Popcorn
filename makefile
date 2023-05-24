@@ -10,6 +10,7 @@ BINARY_NAME = Popcorn
 load-dev-env:
 	@echo "Loading dev.env"
     include config/dev.env
+    include config/secrets.env
     export
 
 # This target starts db in development environment.

@@ -433,7 +433,7 @@ func (s service) delgang(ctx context.Context, admin string) error {
 		return dberr
 	}
 	// Delete uploaded gang contents
-	deleteContent("./uploads/"+oldGangData.ContentID, s.logger)
+	deleteContentFiles("./uploads/"+oldGangData.ContentID, s.logger)
 
 	fmt.Println(oldGangData)
 
@@ -549,21 +549,12 @@ func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bo
 }
 
 // Helper method to delete file due to any issues found during or post upload
-func deleteContent(filepath string, logger log.Logger) {
-	oserr := os.Remove(filepath)
-	if oserr != nil {
-		logger.Error().Err(oserr).Msg("Error occured during deleting content file")
-	}
-	oserr = os.Remove(filepath + ".info")
-	if oserr != nil {
-		logger.Error().Err(oserr).Msg("Error occured during deleting content info file")
-	}
-	oserr = os.Remove(filepath + ".h264")
-	if oserr != nil {
-		logger.Error().Err(oserr).Msg("Error occured during deleting content .h264 file")
-	}
-	oserr = os.Remove(filepath + ".ogg")
-	if oserr != nil {
-		logger.Error().Err(oserr).Msg("Error occured during deleting content .ogg file")
+func deleteContentFiles(filepath string, logger log.Logger) {
+	ext := []string{"", ".info", ".h264", ".ogg"}
+	for i := 0; i < len(ext); i++ {
+		oserr := os.Remove(filepath + ext[i])
+		if oserr != nil {
+			logger.Error().Err(oserr).Msgf("Error occured during deleting content file - %s", filepath+ext[i])
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"Popcorn/pkg/db"
 	"Popcorn/pkg/log"
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -21,6 +22,12 @@ type Repository interface {
 	HasUser(ctx context.Context, logger log.Logger, username string) (bool, error)
 	// SearchGang returns paginated gang data depending on the query.
 	SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch) ([]entity.User, uint64, error)
+	// AddStreamingToken adds streaming token credentials to DB.
+	AddStreamingToken(ctx context.Context, logger log.Logger, username, token string)
+	// GetStreamingToken fetches the user streaming token from DB if available.
+	GetStreamingToken(ctx context.Context, logger log.Logger, username string) string
+	// DelStreamingToken deletes the user streaming token from DB.
+	DelStreamingToken(ctx context.Context, logger log.Logger, username string)
 }
 
 // repository struct of user Repository.
@@ -144,4 +151,37 @@ func (r repository) SearchUser(ctx context.Context, logger log.Logger, query ent
 		searchResult = append(searchResult, userData)
 	}
 	return searchResult, newCursor, nil
+}
+
+// Adds a newly created user gang content streaming token to DB.
+func (r repository) AddStreamingToken(ctx context.Context, logger log.Logger, username, token string) {
+	dberr := r.db.Client().Set(ctx, "stream_token:"+username, token, time.Hour).Err()
+	if dberr != nil {
+		// Error during interacting with DB
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Set() in user.AddStreamingToken")
+	}
+}
+
+// Get user streaming token if available.
+func (r repository) GetStreamingToken(ctx context.Context, logger log.Logger, username string) string {
+	token, dberr := r.db.Client().Get(ctx, "stream_token:"+username).Result()
+	if dberr != nil {
+		if dberr != redis.Nil {
+			// Error during interacting with DB
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Get() in user.GetStreamingToken")
+		}
+		return token
+	}
+	return token
+}
+
+// Delete user streaming token.
+func (r repository) DelStreamingToken(ctx context.Context, logger log.Logger, username string) {
+	_, dberr := r.db.Client().Del(ctx, "stream_token:"+username).Result()
+	if dberr != nil {
+		if dberr != redis.Nil {
+			// Error during interacting with DB
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Del() in user.DelStreamingToken")
+		}
+	}
 }

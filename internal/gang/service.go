@@ -9,6 +9,7 @@ import (
 	"Popcorn/internal/user"
 	"Popcorn/pkg/log"
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -46,12 +47,16 @@ type Service interface {
 	delgang(ctx context.Context, admin string) error
 	// send incoming message to gang members
 	sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error
+	// get livekit stream token needed for streaming content
+	fetchstreamtoken(ctx context.Context, username string) (string, error)
 }
 
 // Object of this will be passed around from main to routers to API.
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
+	apiKey     string
+	apiSecret  string
 	gangRepo   Repository
 	userRepo   user.Repository
 	sseService sse.Service
@@ -59,8 +64,8 @@ type service struct {
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
-	return service{gangRepo, userRepo, sseService, logger}
+func NewService(apiKey, apiSecret string, gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
+	return service{apiKey, apiSecret, gangRepo, userRepo, sseService, logger}
 }
 
 func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
@@ -100,6 +105,13 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		return hasherr
 	}
 	gang.PassKey = hashedgangpk
+
+	// Create livekit room first
+	rerr := createStreamRoom(ctx, s.logger, *gang, s.apiKey, s.apiSecret)
+	if rerr != nil {
+		// Error occured in createStreamRoom()
+		return rerr
+	}
 
 	// Save gang data in DB
 	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, false)
@@ -420,14 +432,25 @@ func (s service) delgang(ctx context.Context, admin string) error {
 		// Error occured in GetGang()
 		return dberr
 	}
+	// Delete uploaded gang contents
 	deleteContent("./uploads/"+oldGangData.ContentID, s.logger)
-	// Send notification to gang members
-	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+
+	fmt.Println(oldGangData)
+
+	// Delete livekit room
+	rerr := deleteStreamRoom(ctx, s.logger, s.apiKey, s.apiSecret, "room:"+admin)
+	if rerr != nil {
+		// Error occured in deleteStreamRoom()
+		return rerr
+	}
+
 	dberr = s.gangRepo.DelGang(ctx, s.logger, admin)
 	if dberr != nil {
 		// Error in DelGang()
 		return dberr
 	}
+	// Send notification to gang members
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
 	for _, member := range members {
 		go func(member string) {
 			data := entity.SSEData{
@@ -493,6 +516,10 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 	return nil
 }
 
+func (s service) fetchstreamtoken(ctx context.Context, username string) (string, error) {
+	return getStreamToken(ctx, s.logger, s.gangRepo, s.userRepo, s.apiKey, s.apiSecret, username)
+}
+
 // Helper to validate the user data against validation-tags mentioned in its entity.
 func (s service) validateGangData(ctx context.Context, gang interface{}) error {
 	_, valerr := govalidator.ValidateStruct(gang)
@@ -522,16 +549,21 @@ func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bo
 }
 
 // Helper method to delete file due to any issues found during or post upload
-func deleteContent(filepath string, logger log.Logger) error {
+func deleteContent(filepath string, logger log.Logger) {
 	oserr := os.Remove(filepath)
 	if oserr != nil {
 		logger.Error().Err(oserr).Msg("Error occured during deleting content file")
-		return errors.InternalServerError("Couldn't delete content")
 	}
 	oserr = os.Remove(filepath + ".info")
 	if oserr != nil {
 		logger.Error().Err(oserr).Msg("Error occured during deleting content info file")
-		return errors.InternalServerError("Couldn't delete content")
 	}
-	return nil
+	oserr = os.Remove(filepath + ".h264")
+	if oserr != nil {
+		logger.Error().Err(oserr).Msg("Error occured during deleting content .h264 file")
+	}
+	oserr = os.Remove(filepath + ".ogg")
+	if oserr != nil {
+		logger.Error().Err(oserr).Msg("Error occured during deleting content .ogg file")
+	}
 }

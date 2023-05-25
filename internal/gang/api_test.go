@@ -116,6 +116,9 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	// Initializing mock router
 	mockRouter = test.MockRouter()
 
+	// Mock API livekit keys and secrets
+	apiKeyMock, apiSecretMock := "LivekitAPI", "LivekitAPISecret"
+
 	// Repositories needed by gang APIs and services to work
 	userRepo = user.NewRepository(dbConnWrp)
 	gangRepo = NewRepository(dbConnWrp)
@@ -123,7 +126,7 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 
 	// Register internal package gang handler
 	sseService := sse.NewService(sseRepo, logger)
-	gangService := NewService(gangRepo, userRepo, sseService, logger)
+	gangService := NewService(apiKeyMock, apiSecretMock, gangRepo, userRepo, sseService, logger)
 	APIHandlers(mockRouter, gangService, test.MockAuthMiddleware(logger), logger)
 }
 

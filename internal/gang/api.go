@@ -31,6 +31,7 @@ func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.Handle
 		gangGroup.POST("/boot_member", bootMember(gangService, logger))
 		gangGroup.POST("/delete", delGang(gangService, logger))
 		gangGroup.POST("/send_msg", sendMessage(gangService, logger))
+		gangGroup.POST("/get_token", fetchStreamToken(gangService, logger))
 	}
 }
 
@@ -489,5 +490,32 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		gctx.Status(http.StatusOK)
+	}
+}
+
+// fetchStreamToken returns a handler which takes care of getting livekit token for streaming.
+func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used in getgang service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		token, err := gangService.fetchstreamtoken(gctx, user.Username)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.JSON(http.StatusOK, gin.H{
+			"access_token": token,
+		})
 	}
 }

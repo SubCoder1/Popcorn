@@ -96,6 +96,8 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	accSecret := os.Getenv("ACCESS_SECRET")
 	refSecret := os.Getenv("REFRESH_SECRET")
 	addr := os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
+	stream_api_key := os.Getenv("LIVEKIT_API_KEY")
+	stream_api_secret := os.Getenv("LIVEKIT_SECRET_KEY")
 
 	// Initializing the gin server
 	ginMode := os.Getenv("GIN_MODE")
@@ -118,7 +120,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
 	sseService := sse.NewService(sseRepo, logger)
-	gangService := gang.NewService(gangRepo, userRepo, sseService, logger)
+	gangService := gang.NewService(stream_api_key, stream_api_secret, gangRepo, userRepo, sseService, logger)
 
 	// Launch SSE Listener in a seperate goroutine
 	sseService.GetOrSetEvent(ctx)
@@ -139,7 +141,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	gang.APIHandlers(router, gangService, accAuthMiddleware, logger)
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
-	// Register tusd file storage handler route
+	// Register tusd file storage handler
 	storage_handler := storage.GetTusdStorageHandler(gangRepo, sseService, logger)
 	storage.APIHandlers(router, storage_handler, accAuthMiddleware, tusAuthMiddleware, logger)
 

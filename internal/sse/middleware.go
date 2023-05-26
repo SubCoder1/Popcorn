@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SSEConnMiddleware(service Service, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
+func SSEConnManagerMiddleware(service Service, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		user, ok := gctx.Value("User").(entity.User)

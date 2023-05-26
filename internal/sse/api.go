@@ -13,11 +13,8 @@ import (
 )
 
 // Registers all of the REST API handlers related to internal package sse onto the gin server.
-func APIHandlers(router *gin.Engine, service Service, authWithAcc gin.HandlerFunc, sseConn gin.HandlerFunc, logger log.Logger) {
-	sseGroup := router.Group("/api/sse", authWithAcc, middlewares.SSEMiddleware(), sseConn)
-	{
-		sseGroup.GET("/stream", ssehandler(service, logger))
-	}
+func APIHandlers(router *gin.Engine, service Service, authWithAcc, sseConnManager gin.HandlerFunc, logger log.Logger) {
+	router.GET("/api/sse", authWithAcc, middlewares.SSECORSMiddleware(), sseConnManager, ssehandler(service, logger))
 }
 
 func ssehandler(service Service, logger log.Logger) gin.HandlerFunc {

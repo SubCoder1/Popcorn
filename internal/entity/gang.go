@@ -21,6 +21,8 @@ type Gang struct {
 	ContentName string `json:"-" redis:"gang_content_name" valid:"-"`
 	// Gang Content file ID.
 	ContentID string `json:"-" redis:"gang_content_ID" valid:"-"`
+	// Gang Stream status
+	Streaming bool `json:"-" redis:"gang_streaming" valid:"-"`
 }
 
 // Response structure of Gangs in Popcorn, typically used in get methods.
@@ -34,6 +36,7 @@ type GangResponse struct {
 	Created     int64  `json:"gang_created,omitempty" redis:"gang_created"`
 	ContentName string `json:"gang_content_name" redis:"gang_content_name"`
 	ContentID   string `json:"gang_content_ID" redis:"gang_content_ID"`
+	Streaming   bool   `json:"gang_streaming" redis:"gang_streaming"`
 }
 
 // Saved in DB as gang-members:<members>.

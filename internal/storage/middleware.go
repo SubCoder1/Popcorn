@@ -33,7 +33,7 @@ func ValidateGangAdminMiddleware(logger log.Logger, gangRepo gang.Repository) gi
 		if gctx.Request.Method == "DELETE" {
 			// Erase content ID and filename from DB
 			defer func() {
-				dberr := gangRepo.UpdateGangContentData(gctx, logger, user.Username, "", "")
+				dberr := gangRepo.UpdateGangContentData(gctx, logger, user.Username, "", "", false)
 				if dberr != nil {
 					// Error occured in UpdateGangContentData()
 					logger.Error().Err(dberr).Msg("")

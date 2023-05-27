@@ -45,7 +45,7 @@ type Repository interface {
 	// AcceptGangInvite accepts the invite request and joins the requested gang.
 	AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// UpdateGangContentData updates content filename and ID from gang data.
-	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string) error
+	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string, gang_streaming bool) error
 }
 
 // repository struct of gang Repository.
@@ -110,6 +110,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
 					client.HSet(ctx, gangKey, "gang_members_key", gang.MembersListKey)
 					client.HSet(ctx, gangKey, "gang_created", gang.Created)
+					client.HSet(ctx, gangKey, "gang_streaming", false)
 				} else if len(gang.ContentID) != 0 && len(gang.ContentName) != 0 {
 					// These values are only updated through server
 					client.HSet(ctx, gangKey, "gang_content_name", gang.ContentName)
@@ -586,7 +587,7 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 }
 
 // Deletes gang content ID and filename from gang data.
-func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string) error {
+func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, content_name, content_ID string, gang_streaming bool) error {
 	// Checking if an gang with admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+admin, "")
 	if dberr != nil {
@@ -602,6 +603,7 @@ func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger
 			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
 				client.HSet(ctx, gangKey, "gang_content_name", content_name)
 				client.HSet(ctx, gangKey, "gang_content_ID", content_ID)
+				client.HSet(ctx, gangKey, "gang_streaming", gang_streaming)
 				return nil
 			})
 			return dberr

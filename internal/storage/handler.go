@@ -14,7 +14,6 @@ import (
 	"github.com/h2non/filetype"
 	"github.com/tus/tusd/pkg/filestore"
 	tusd "github.com/tus/tusd/pkg/handler"
-	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
 var (
@@ -102,8 +101,6 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 		for {
 			event := <-handler.CompleteUploads
 			logger.Info().Msgf("Upload %s finished", event.Upload.ID)
-			// Start encoding the uploaded content
-			go encodeContentIntoH264(logger, event.Upload.ID)
 			// Send notifications to gang Members about the updates
 			user := event.HTTPRequest.Header.Get("User")
 			members, _ := gangRepo.GetGangMembers(ctx, logger, user)
@@ -144,31 +141,4 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 	}()
 
 	return handler
-}
-
-// Encodes successfully uploaded content into proper format
-func encodeContentIntoH264(logger log.Logger, content_ID string) {
-	logger.Info().Msgf("Starting encoding of uploaded content - %s using ffmpeg", content_ID)
-	input_path := content_dir + "/" + content_ID
-	vid_output_path := content_dir + "/" + content_ID + ".h264"
-	aud_output_path := content_dir + "/" + content_ID + ".ogg"
-
-	err := ffmpeg.Input(input_path).Output(vid_output_path, ffmpeg.KwArgs{
-		"c:v": "libx264", "bsf:v": "h264_mp4toannexb", "b:v": "2M",
-		"pix_fmt": "yuv420p", "x264-params": "keyint=120",
-		"max_delay": 0, "loglevel": "warning", "movflags": "+faststart",
-		"c:a": "libopus", "b:a": "128k", "page_duration": 20000, "vn": aud_output_path,
-	}).OverWriteOutput().ErrorToStdOut().Run()
-
-	if err != nil {
-		// Error occured during encoding content
-		logger.Error().Err(err).Msgf("Error occured while encoding content - %s", content_ID)
-		// Print the info file of the content for better debugging
-		content_info, oserr := os.ReadFile(input_path + ".info")
-		if oserr != nil {
-			// Could not read .info file (maybe missing or corrupted?)
-			logger.Error().Err(oserr).Msgf("Could not read file - %s", input_path)
-		}
-		logger.Info().Msg(string(content_info))
-	}
 }

@@ -95,7 +95,10 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Set any environment variables to be used in handlers here
 	accSecret := os.Getenv("ACCESS_SECRET")
 	refSecret := os.Getenv("REFRESH_SECRET")
+
 	addr := os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
+
+	stream_host := os.Getenv("LIVEKIT_HOST")
 	stream_api_key := os.Getenv("LIVEKIT_API_KEY")
 	stream_api_secret := os.Getenv("LIVEKIT_SECRET_KEY")
 
@@ -120,7 +123,11 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
 	sseService := sse.NewService(sseRepo, logger)
-	gangService := gang.NewService(stream_api_key, stream_api_secret, gangRepo, userRepo, sseService, logger)
+	gangService := gang.NewService(gang.LivekitConfig{
+		Host:      stream_host,
+		ApiKey:    stream_api_key,
+		ApiSecret: stream_api_secret,
+	}, gangRepo, userRepo, sseService, logger)
 
 	// Launch SSE Listener in a seperate goroutine
 	sseService.GetOrSetEvent(ctx)
@@ -129,7 +136,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Declare internal middlewares here
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
-	sseConnMiddleware := sse.SSEConnMiddleware(sseService, sseRepo, logger)
+	sseConnMiddleware := sse.SSEConnManagerMiddleware(sseService, sseRepo, logger)
 	tusAuthMiddleware := storage.ValidateGangAdminMiddleware(logger, gangRepo)
 
 	// Register handlers of different internal packages in Popcorn

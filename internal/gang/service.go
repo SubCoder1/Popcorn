@@ -7,10 +7,9 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
+	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -19,15 +18,15 @@ import (
 
 // Service layer of internal package gang which encapsulates gang CRUD logic of Popcorn.
 type Service interface {
-	// Creates a gang in Popcorn.
+	// Creates a gang in Popcorn
 	creategang(ctx context.Context, gang *entity.Gang) error
-	// Updates a gang in Popcorn.
+	// Updates a gang in Popcorn
 	updategang(ctx context.Context, gang *entity.Gang) error
-	// Get user created or joined gang data in Popcorn.
+	// Get user created or joined gang data in Popcorn
 	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
-	// Get gang invites received by user in Popcorn.
+	// Get gang invites received by user in Popcorn
 	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
-	// Get list of gang members of user created gang in Popcorn.
+	// Get list of gang members of user created gang in Popcorn
 	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
 	joingang(ctx context.Context, user entity.User, joinGangData entity.GangJoin) error
@@ -49,23 +48,24 @@ type Service interface {
 	sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error
 	// get livekit stream token needed for streaming content
 	fetchstreamtoken(ctx context.Context, username string) (string, error)
+	// livestream gang content to all of the gang members
+	playcontent(ctx context.Context, admin string) error
 }
 
 // Object of this will be passed around from main to routers to API.
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	apiKey     string
-	apiSecret  string
-	gangRepo   Repository
-	userRepo   user.Repository
-	sseService sse.Service
-	logger     log.Logger
+	livekit_config LivekitConfig
+	gangRepo       Repository
+	userRepo       user.Repository
+	sseService     sse.Service
+	logger         log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(apiKey, apiSecret string, gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
-	return service{apiKey, apiSecret, gangRepo, userRepo, sseService, logger}
+func NewService(livekit_conf LivekitConfig, gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
+	return service{livekit_conf, gangRepo, userRepo, sseService, logger}
 }
 
 func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
@@ -107,7 +107,9 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	gang.PassKey = hashedgangpk
 
 	// Create livekit room first
-	rerr := createStreamRoom(ctx, s.logger, *gang, s.apiKey, s.apiSecret)
+	s.livekit_config.Identity = gang.Admin
+	s.livekit_config.RoomName = "room:" + gang.Admin
+	rerr := createStreamRoom(ctx, s.logger, uint32(gang.Limit), s.livekit_config)
 	if rerr != nil {
 		// Error occured in createStreamRoom()
 		return rerr
@@ -187,6 +189,15 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 	if dberr != nil {
 		// Error occured in GetGang()
 		return entity.GangResponse{}, canCreate, canJoin, dberr
+	}
+	if gangData.Admin != "" {
+		s.livekit_config.Identity = gangData.Admin
+		s.livekit_config.RoomName = "room:" + gangData.Admin
+		rerr := createStreamRoom(ctx, s.logger, uint32(gangData.Limit), s.livekit_config)
+		if rerr != nil {
+			// Error occured in createStreamRoom()
+			return entity.GangResponse{}, canCreate, canJoin, rerr
+		}
 	}
 	// Don't send empty gang data
 	if (gangData != entity.GangResponse{}) {
@@ -396,9 +407,20 @@ func (s service) bootmember(ctx context.Context, admin string, boot entity.GangE
 		// Error occured during validation
 		return valerr
 	}
+	// Remove member from ongoing stream
+	s.livekit_config.RoomName = "room:" + admin
+	rerr := RemoveGangMemberFromStream(ctx, s.logger, s.livekit_config, boot.Member)
+	if rerr != nil {
+		// Error in RemoveGangMemberFromStream()
+		return rerr
+	}
 	// Send notification to gang members
-	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
-	dberr := s.gangRepo.LeaveGang(ctx, s.logger, boot)
+	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+	if dberr != nil {
+		// Error in GetGangMembers()
+		return dberr
+	}
+	dberr = s.gangRepo.LeaveGang(ctx, s.logger, boot)
 	if dberr != nil {
 		// Error in LeaveGang()
 		return dberr
@@ -432,17 +454,17 @@ func (s service) delgang(ctx context.Context, admin string) error {
 		// Error occured in GetGang()
 		return dberr
 	}
-	// Delete uploaded gang contents
-	deleteContentFiles("./uploads/"+oldGangData.ContentID, s.logger)
-
-	fmt.Println(oldGangData)
 
 	// Delete livekit room
-	rerr := deleteStreamRoom(ctx, s.logger, s.apiKey, s.apiSecret, "room:"+admin)
+	s.livekit_config.RoomName = "room:" + admin
+	rerr := deleteStreamRoom(ctx, s.logger, s.livekit_config)
 	if rerr != nil {
 		// Error occured in deleteStreamRoom()
 		return rerr
 	}
+
+	// Delete uploaded gang contents
+	go cleanup.DeleteContentFiles("./uploads/"+oldGangData.ContentID, s.logger)
 
 	dberr = s.gangRepo.DelGang(ctx, s.logger, admin)
 	if dberr != nil {
@@ -452,6 +474,7 @@ func (s service) delgang(ctx context.Context, admin string) error {
 	// Send notification to gang members
 	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
 	for _, member := range members {
+		s.userRepo.DelStreamingToken(ctx, s.logger, member)
 		go func(member string) {
 			data := entity.SSEData{
 				Data: nil,
@@ -482,7 +505,7 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 			// Error in GetJoinedGang()
 			return dberr
 		} else if (gang == entity.GangResponse{}) {
-			return errors.BadRequest("User needs to create or join a gang.")
+			return errors.BadRequest("user needs to create or join a gang")
 		}
 	}
 	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
@@ -517,7 +540,57 @@ func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user e
 }
 
 func (s service) fetchstreamtoken(ctx context.Context, username string) (string, error) {
-	return getStreamToken(ctx, s.logger, s.gangRepo, s.userRepo, s.apiKey, s.apiSecret, username)
+	s.livekit_config.Identity = username
+	return getStreamToken(ctx, s.logger, s.gangRepo, s.userRepo, s.livekit_config)
+}
+
+func (s service) playcontent(ctx context.Context, admin string) error {
+	gangKey := "gang:" + admin
+	gang, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, false)
+	if dberr != nil {
+		// Error occured in GetGang()
+		return dberr
+	} else if gang.Admin == "" {
+		// Not an admin
+		return errors.BadRequest("user needs to create a gang")
+	} else if gang.Streaming {
+		// Already streaming
+		return errors.BadRequest("content is already streaming")
+	}
+	// getting the members list early
+	// coz if failure occurs here, no point of publishing content
+	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+	if dberr != nil {
+		// Error occured in GetGangMembers()
+		return dberr
+	}
+	// set gang.Streaming flag to true
+	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, gang.ContentName, gang.ContentID, true)
+	if dberr != nil {
+		// Error occured in UpdateGangContentData()
+		return dberr
+	}
+	// Send notification to gang members
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: nil,
+				Type: "gangPlayContent",
+				To:   member,
+			}
+			s.sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
+	// Publish encoded content files into livekit cloud
+	s.livekit_config.Content = gang.ContentID
+	s.livekit_config.RoomName = "room:" + admin
+	s.livekit_config.Identity = admin
+	perr := ingressStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)
+	if perr != nil {
+		// Error occured in publishStreamContent()
+		return perr
+	}
+	return nil
 }
 
 // Helper to validate the user data against validation-tags mentioned in its entity.
@@ -535,7 +608,7 @@ func (s service) validateGangData(ctx context.Context, gang interface{}) error {
 func (s service) generatePassKeyHash(ctx context.Context, passkey string) (string, error) {
 	pwdbyte, err := bcrypt.GenerateFromPassword([]byte(passkey), bcrypt.DefaultCost)
 	if err != nil {
-		s.logger.WithCtx(ctx).Error().Err(err).Msg("Error occured during Password encryption.")
+		s.logger.WithCtx(ctx).Error().Err(err).Msg("Error occured during Password encryption")
 		return "", errors.InternalServerError("")
 	}
 	return string(pwdbyte), nil
@@ -546,15 +619,4 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
 	return err == nil
-}
-
-// Helper method to delete file due to any issues found during or post upload
-func deleteContentFiles(filepath string, logger log.Logger) {
-	ext := []string{"", ".info", ".h264", ".ogg"}
-	for i := 0; i < len(ext); i++ {
-		oserr := os.Remove(filepath + ext[i])
-		if oserr != nil {
-			logger.Error().Err(oserr).Msgf("Error occured during deleting content file - %s", filepath+ext[i])
-		}
-	}
 }

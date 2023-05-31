@@ -155,7 +155,7 @@ func (r repository) SearchUser(ctx context.Context, logger log.Logger, query ent
 
 // Adds a newly created user gang content streaming token to DB.
 func (r repository) AddStreamingToken(ctx context.Context, logger log.Logger, username, token string) {
-	dberr := r.db.Client().Set(ctx, "stream_token:"+username, token, time.Hour).Err()
+	dberr := r.db.Client().Set(ctx, "stream_token:"+username, token, time.Hour*3).Err()
 	if dberr != nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.Set() in user.AddStreamingToken")

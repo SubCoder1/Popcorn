@@ -32,6 +32,7 @@ func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.Handle
 		gangGroup.POST("/delete", delGang(gangService, logger))
 		gangGroup.POST("/send_msg", sendMessage(gangService, logger))
 		gangGroup.POST("/get_token", fetchStreamToken(gangService, logger))
+		gangGroup.POST("/play", playContent(gangService, logger))
 	}
 }
 
@@ -43,7 +44,7 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		// Serialize received data into User struct
 		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
 			// Error occured during serialization
-			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with Gang struct")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
@@ -82,7 +83,7 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		// Serialize received data into User struct
 		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
 			// Error occured during serialization
-			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
+			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with Gang struct")
 			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
@@ -91,7 +92,7 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in updateGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
@@ -268,7 +269,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in searchGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 
@@ -411,7 +412,7 @@ func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMember")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var boot entity.GangExit
@@ -444,7 +445,7 @@ func delGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in delGang")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		err := gangService.delgang(gctx, user.Username)
@@ -469,7 +470,7 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMemberFromGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendMessage")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var msg entity.GangMessage
@@ -500,7 +501,7 @@ func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in fetchStreamToken")
 			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		token, err := gangService.fetchstreamtoken(gctx, user.Username)
@@ -514,8 +515,31 @@ func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
 			gctx.JSON(err.Status, err)
 			return
 		}
-		gctx.JSON(http.StatusOK, gin.H{
-			"access_token": token,
-		})
+		gctx.JSON(http.StatusOK, gin.H{"stream_token": token})
+	}
+}
+
+// playContent returns a handler which takes care of live streaming content to gang members.
+func playContent(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the playcontent service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in playContent")
+			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		}
+		err := gangService.playcontent(gctx, user.Username)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			}
+			gctx.JSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
 	}
 }

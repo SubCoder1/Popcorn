@@ -39,6 +39,7 @@ func getUser(service Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -71,6 +72,7 @@ func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return

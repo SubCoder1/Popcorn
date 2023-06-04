@@ -48,6 +48,7 @@ func register(authService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -104,6 +105,7 @@ func login(authService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -149,6 +151,7 @@ func logout(authService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -203,6 +206,7 @@ func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return

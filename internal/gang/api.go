@@ -67,6 +67,7 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -106,6 +107,7 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -131,6 +133,7 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -162,6 +165,7 @@ func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -190,6 +194,7 @@ func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -226,6 +231,7 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -254,6 +260,7 @@ func leaveGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -292,6 +299,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -331,6 +339,7 @@ func sendInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -364,6 +373,7 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -397,6 +407,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -430,6 +441,7 @@ func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -455,6 +467,7 @@ func delGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -486,6 +499,7 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -511,6 +525,7 @@ func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return
@@ -536,6 +551,7 @@ func playContent(gangService Service, logger log.Logger) gin.HandlerFunc {
 			if !ok {
 				// Type assertion error
 				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
 			}
 			gctx.JSON(err.Status, err)
 			return

@@ -220,7 +220,7 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 		// Checking if gangKey exists in the DB
 		available, dberr := r.HasGang(ctx, logger, gangKey, "")
 		if dberr != nil {
-			// Issues in Exists()
+			// Issues in HasGang()
 			return entity.GangResponse{}, dberr
 		} else if !available {
 			return entity.GangResponse{}, nil
@@ -481,7 +481,7 @@ func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity
 		}
 		gang, dberr := r.GetGang(ctx, logger, gangKey, username, false)
 		if dberr != nil {
-			// Issues in getGangByKey()
+			// Issues in GetGang()
 			return searchResult, uint64(0), dberr
 		} else if gang.Admin == "" {
 			// Empty gang, must be expired

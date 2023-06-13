@@ -36,7 +36,7 @@ func register(authService Service, logger log.Logger) gin.HandlerFunc {
 		if binderr := gctx.ShouldBindJSON(&user); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 
@@ -47,10 +47,10 @@ func register(authService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 
@@ -93,7 +93,7 @@ func login(authService Service, logger log.Logger) gin.HandlerFunc {
 		if binderr := gctx.ShouldBindJSON(&user); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with User struct.")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 
@@ -104,10 +104,10 @@ func login(authService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 
@@ -150,10 +150,10 @@ func logout(authService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		// Delete access_token cookie from client's header
@@ -195,7 +195,7 @@ func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in refresh_token")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
 		// Generate fresh pair of JWT for user
@@ -205,10 +205,10 @@ func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 

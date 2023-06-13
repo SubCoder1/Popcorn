@@ -29,7 +29,8 @@ func getUser(service Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in get_gang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		// Apply the service logic for Get User in Popcorn
 		user, err := service.getuser(gctx, user.Username)
@@ -38,10 +39,10 @@ func getUser(service Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.JSON(http.StatusOK, gin.H{
@@ -58,7 +59,7 @@ func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 		request_cursor, converr := strconv.Atoi(gctx.DefaultQuery("cursor", "0"))
 		if converr != nil || request_cursor < 0 || request_cursor > 1000 || request_username == "" {
 			// Invalid input
-			gctx.Status(http.StatusBadRequest)
+			gctx.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
 		// bind data into query struct
@@ -71,10 +72,10 @@ func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.JSON(http.StatusOK, gin.H{

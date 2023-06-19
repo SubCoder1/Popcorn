@@ -14,7 +14,7 @@ import (
 
 // As only gang admin can do anything regarding content (upload / update / delete),
 // This middleware is needed to validate incoming tus requests.
-func ValidateGangAdminMiddleware(logger log.Logger, gangRepo gang.Repository) gin.HandlerFunc {
+func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the gang admin
 		user, ok := gctx.Value("User").(entity.User)

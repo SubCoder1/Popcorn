@@ -28,6 +28,9 @@ func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Durat
 
 		logger.WithCtx(ctx).Warn().Msg("Graceful shutdown in progress.")
 
+		// Putting process shutdown on wait till all of the ffmpeg processes are closed
+		time.Sleep(2 * time.Second)
+
 		// Force exit after timeout duration has been elapsed
 		force := time.AfterFunc(timeout, func() {
 			logger.WithCtx(ctx).Warn().Msg(fmt.Sprintf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds()))

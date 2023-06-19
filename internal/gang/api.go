@@ -33,6 +33,7 @@ func APIHandlers(router *gin.Engine, gangService Service, authWithAcc gin.Handle
 		gangGroup.POST("/send_msg", sendMessage(gangService, logger))
 		gangGroup.POST("/get_token", fetchStreamToken(gangService, logger))
 		gangGroup.POST("/play", playContent(gangService, logger))
+		gangGroup.POST("/stop", stopContent(gangService, logger))
 	}
 }
 
@@ -45,7 +46,7 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with Gang struct")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 
@@ -54,7 +55,7 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
 		gang.Admin = user.Username
@@ -66,10 +67,10 @@ func createGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -85,7 +86,7 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if binderr := gctx.ShouldBindJSON(&gang); binderr != nil {
 			// Error occured during serialization
 			logger.WithCtx(gctx).Error().Err(binderr).Msg("Binding error occured with Gang struct")
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 
@@ -94,7 +95,7 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in updateGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
 		gang.Admin = user.Username
@@ -106,10 +107,10 @@ func updateGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -124,7 +125,7 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		data, canCreate, canJoin, err := gangService.getgang(gctx, user.Username)
 		if err != nil {
@@ -132,10 +133,10 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 
@@ -155,7 +156,7 @@ func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangInvites")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		invites, err := gangService.getganginvites(gctx, user.Username)
 
@@ -164,10 +165,10 @@ func getGangInvites(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 
@@ -185,7 +186,7 @@ func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGangMembers")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		membersList, err := gangService.getgangmembers(gctx, user.Username)
 		if err != nil {
@@ -193,10 +194,10 @@ func getGangMembers(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.JSON(http.StatusOK, gin.H{
@@ -213,13 +214,13 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in joinGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var gangKey entity.GangJoin
 		// Serialize received data into GangKey struct
 		if binderr := gctx.ShouldBindJSON(&gangKey); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		// Set gang-key which is of format gang:<gang_admin>
@@ -230,10 +231,10 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -248,7 +249,7 @@ func leaveGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in leaveGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var boot entity.GangExit
 		boot.Member = user.Username
@@ -259,10 +260,10 @@ func leaveGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -277,7 +278,7 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in searchGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 
 		var query entity.GangSearch
@@ -298,10 +299,10 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.JSON(http.StatusOK, gin.H{
@@ -319,13 +320,13 @@ func sendInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendInvite")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
 		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		// User should be the admin here
@@ -338,10 +339,10 @@ func sendInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -356,13 +357,13 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in acceptInvite")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
 		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		gangInvite.For = user.Username
@@ -372,10 +373,10 @@ func acceptInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -390,13 +391,14 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in rejectInvite")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		var gangInvite entity.GangInvite
 		// Serialize received data into GangInvite struct
 		if binderr := gctx.ShouldBindJSON(&gangInvite); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		gangInvite.For = user.Username
@@ -406,10 +408,10 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -424,12 +426,13 @@ func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in bootMember")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		var boot entity.GangExit
 		if binderr := gctx.ShouldBindJSON(&boot); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		boot.Key = "gang:" + user.Username
@@ -440,10 +443,10 @@ func bootMember(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -458,7 +461,8 @@ func delGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in delGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		err := gangService.delgang(gctx, user.Username)
 		if err != nil {
@@ -466,10 +470,10 @@ func delGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -484,12 +488,13 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in sendMessage")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		var msg entity.GangMessage
 		if binderr := gctx.ShouldBindJSON(&msg); binderr != nil {
 			// Error occured during serialization
-			gctx.JSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
+			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		err := gangService.sendmessage(gctx, msg, user)
@@ -498,10 +503,10 @@ func sendMessage(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)
@@ -516,7 +521,8 @@ func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in fetchStreamToken")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		token, err := gangService.fetchstreamtoken(gctx, user.Username)
 		if err != nil {
@@ -524,10 +530,10 @@ func fetchStreamToken(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.JSON(http.StatusOK, gin.H{"stream_token": token})
@@ -542,7 +548,8 @@ func playContent(gangService Service, logger log.Logger) gin.HandlerFunc {
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in playContent")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		err := gangService.playcontent(gctx, user.Username)
 		if err != nil {
@@ -550,10 +557,37 @@ func playContent(gangService Service, logger log.Logger) gin.HandlerFunc {
 			err, ok := err.(errors.ErrorResponse)
 			if !ok {
 				// Type assertion error
-				gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 				return
 			}
-			gctx.JSON(err.Status, err)
+			gctx.AbortWithStatusJSON(err.Status, err)
+			return
+		}
+		gctx.Status(http.StatusOK)
+	}
+}
+
+// stopContent returns a handler which takes care of stopping an ongoing gang stream.
+func stopContent(gangService Service, logger log.Logger) gin.HandlerFunc {
+	return func(gctx *gin.Context) {
+		// Fetch username from context which will be used as the playcontent service
+		user, ok := gctx.Value("User").(entity.User)
+		if !ok {
+			// Type assertion error
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in stopContent")
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
+		}
+		err := gangService.stopcontent(gctx, user.Username)
+		if err != nil {
+			// Error occured, might be validation or server error
+			err, ok := err.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
+			}
+			gctx.AbortWithStatusJSON(err.Status, err)
 			return
 		}
 		gctx.Status(http.StatusOK)

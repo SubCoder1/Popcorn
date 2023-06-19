@@ -50,6 +50,8 @@ type Service interface {
 	fetchstreamtoken(ctx context.Context, username string) (string, error)
 	// livestream gang content to all of the gang members
 	playcontent(ctx context.Context, admin string) error
+	// stop ongoing gang livestream
+	stopcontent(ctx context.Context, admin string) error
 }
 
 // Object of this will be passed around from main to routers to API.
@@ -63,8 +65,14 @@ type service struct {
 	logger         log.Logger
 }
 
+// Instance of stream records used as an helper to close stream
+type close_stream_signal chan bool
+
+var streamRecords map[string]close_stream_signal
+
 // Helps to access the service layer interface and call methods. Service object is passed from main.
 func NewService(livekit_conf LivekitConfig, gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
+	streamRecords = map[string]close_stream_signal{}
 	return service{livekit_conf, gangRepo, userRepo, sseService, logger}
 }
 
@@ -336,8 +344,21 @@ func (s service) acceptganginvite(ctx context.Context, user entity.User, invite 
 	if invite.Admin == invite.For {
 		return errors.BadRequest("Invalid Gang Invite")
 	}
+	// Check if the user who's accepting the invite is him/herself an admin
+	// If so, then check further if he/she is currently streaming any content
+	// close the content streaming process first (if found)
+	gangKey := "gang:" + user.Username
+	gang, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, user.Username, false)
+	if dberr != nil {
+		// Error in GetGang()
+		return dberr
+	}
+	if gang.IsAdmin && gang.Streaming {
+		// Kill the streaming process
+		s.stopcontent(ctx, gang.Admin)
+	}
 
-	dberr := s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
+	dberr = s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)
 	if dberr != nil {
 		// Error in AcceptGangInvite()
 		return dberr
@@ -453,6 +474,9 @@ func (s service) delgang(ctx context.Context, admin string) error {
 	if dberr != nil {
 		// Error occured in GetGang()
 		return dberr
+	} else if oldGangData.Admin == "" {
+		// Gang not found
+		return errors.NotFound("user must create a gang")
 	}
 
 	// Delete livekit room
@@ -589,6 +613,31 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 	if perr != nil {
 		// Error occured in publishStreamContent()
 		return perr
+	}
+	return nil
+}
+
+func (s service) stopcontent(ctx context.Context, admin string) error {
+	gangKey := "gang:" + admin
+	gang, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, false)
+	if dberr != nil {
+		// Error occured in GetGang()
+		return dberr
+	} else if gang.Admin == "" {
+		// Not an admin
+		return errors.BadRequest("user needs to create a gang")
+	} else if !gang.Streaming {
+		// Not streaming
+		return errors.BadRequest("content is not being streamed")
+	}
+
+	s.livekit_config.RoomName = "room:" + admin
+	if stream, ok := streamRecords[s.livekit_config.RoomName]; ok {
+		stream <- true
+	} else {
+		s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
+		ingressClient := createIngressClient(ctx, s.logger, s.livekit_config)
+		updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
 	}
 	return nil
 }

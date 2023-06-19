@@ -11,7 +11,10 @@ import (
 	"Popcorn/pkg/log"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/livekit/protocol/auth"
@@ -143,9 +146,14 @@ func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config L
 	return nil
 }
 
+// Helper to create and return an IngressClient.
+func createIngressClient(ctx context.Context, logger log.Logger, config LivekitConfig) *lksdk.IngressClient {
+	return lksdk.NewIngressClient(config.Host, config.ApiKey, config.ApiSecret)
+}
+
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
 func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository, config LivekitConfig) error {
-	ingressClient := lksdk.NewIngressClient(config.Host, config.ApiKey, config.ApiSecret)
+	ingressClient := createIngressClient(ctx, logger, config)
 
 	// Delete existing ingress with same roomname
 	ingerr := deleteIngress(ctx, logger, ingressClient, config.RoomName)
@@ -178,52 +186,58 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		return errors.InternalServerError("")
 	}
 
+	ffmpegCmd := exec.Command(
+		"ffmpeg",
+		"-re",
+		"-i", "./uploads/"+config.Content,
+		"-c:v", "libx264",
+		"-b:v", "3M",
+		"-loglevel", "error",
+		"-stats",
+		"-preset:v", "veryfast",
+		"-profile:v", "high",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-f", "flv",
+		fmt.Sprintf("%s/%s", info.GetUrl(), info.GetStreamKey()),
+	)
+	// Signal to close running ffmpeg process on server shutdown
 	go func() {
-		ffmpegCmd := exec.Command(
-			"ffmpeg",
-			"-re",
-			"-i", "./uploads/"+config.Content,
-			"-c:v", "libx264",
-			"-b:v", "3M",
-			"-loglevel", "error",
-			"-stats",
-			"-preset:v", "veryfast",
-			"-profile:v", "high",
-			"-c:a", "aac",
-			"-b:a", "128k",
-			"-f", "flv",
-			fmt.Sprintf("%s/%s", info.GetUrl(), info.GetStreamKey()),
-		)
+		s := make(chan os.Signal, 1)
+		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+		closing_signal := <-s
+		err := ffmpegCmd.Process.Signal(closing_signal)
+		if err != nil {
+			// Error occured during force-closing ffmpeg process
+			logger.WithCtx(ctx).Error().Err(err).Msg("Error occured during force-closing ffmpeg process")
+		} else {
+			updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		}
+	}()
+	// Start the stream process in a separate goroutine
+	go func() {
 		output, execerr := ffmpegCmd.CombinedOutput()
 		if execerr != nil {
 			logger.WithCtx(ctx).Error().Err(execerr).Msgf("Failed to run ffmpeg command - %s", string(output))
 		}
-
-		logger.WithCtx(ctx).Info().Msgf("Stream ended for content %s | %s", config.Content, config.RoomName)
-		// Delete gang content files
-		go cleanup.DeleteContentFiles("./uploads/"+config.Content, logger)
-		// Delete ingress
-		go deleteIngress(ctx, logger, ingressClient, config.RoomName)
-		// Erase gang content data
-		gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", false)
-		// Notify the members that stream has stopped
-		members, _ := gangRepo.GetGangMembers(ctx, logger, config.Identity)
-		for _, member := range members {
-			go func(member string) {
-				data := entity.SSEData{
-					Data: nil,
-					Type: "gangEndContent",
-					To:   member,
-				}
-				sseService.GetOrSetEvent(ctx).Message <- data
-			}(member)
-		}
+		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
 	}()
-
+	// Another goroutine to handle user triggered force-close of this stream
+	go func() {
+		streamRecords[config.RoomName] = make(close_stream_signal, 1)
+		<-streamRecords[config.RoomName]
+		err := ffmpegCmd.Process.Kill()
+		if err != nil {
+			// Error during killing ffmpeg process
+			logger.WithCtx(ctx).Error().Err(err).Msgf("Error during killing off ffmpeg process for %s", config.RoomName)
+		}
+		close(streamRecords[config.RoomName])
+		delete(streamRecords, config.RoomName)
+	}()
 	return nil
 }
 
-// Helper to delete already built ingress
+// Helper to delete already built livekit ingress.
 func deleteIngress(ctx context.Context, logger log.Logger, client *lksdk.IngressClient, roomName string) error {
 	ingressList, ingerr := client.ListIngress(ctx, &livekit.ListIngressRequest{RoomName: roomName})
 	if ingerr != nil {
@@ -238,4 +252,28 @@ func deleteIngress(ctx context.Context, logger log.Logger, client *lksdk.Ingress
 		}
 	}
 	return nil
+}
+
+// Helper to update content data after stream process finishes.
+func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository,
+	ingressClient *lksdk.IngressClient, config LivekitConfig) {
+	logger.WithCtx(ctx).Info().Msgf("Stream ended for content %s | %s", config.Content, config.RoomName)
+	// Delete ingress
+	deleteIngress(ctx, logger, ingressClient, config.RoomName)
+	// Delete gang content files
+	cleanup.DeleteContentFiles("./uploads/"+config.Content, logger)
+	// Erase gang content data
+	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", false)
+	// Notify the members that stream has stopped
+	members, _ := gangRepo.GetGangMembers(ctx, logger, config.Identity)
+	for _, member := range members {
+		go func(member string) {
+			data := entity.SSEData{
+				Data: nil,
+				Type: "gangEndContent",
+				To:   member,
+			}
+			sseService.GetOrSetEvent(ctx).Message <- data
+		}(member)
+	}
 }

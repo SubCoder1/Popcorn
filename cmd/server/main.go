@@ -137,7 +137,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
 	sseConnMiddleware := sse.SSEConnManagerMiddleware(sseService, sseRepo, logger)
-	tusAuthMiddleware := storage.ValidateGangAdminMiddleware(logger, gangRepo)
+	tusAuthMiddleware := storage.ContentStorageMiddleware(logger, gangRepo)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler

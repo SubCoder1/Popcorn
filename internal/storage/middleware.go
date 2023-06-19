@@ -21,13 +21,27 @@ func ValidateGangAdminMiddleware(logger log.Logger, gangRepo gang.Repository) gi
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
 		gangKey := "gang:" + user.Username
-		available, dberr := gangRepo.HasGang(ctx, logger, gangKey, "")
-		if dberr != nil || !available {
+		gang, dberr := gangRepo.GetGang(ctx, logger, gangKey, user.Username, false)
+		if dberr != nil {
+			// Error occured, might be validation or server error
+			err, ok := dberr.(errors.ErrorResponse)
+			if !ok {
+				// Type assertion error
+				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+				return
+			}
+			gctx.AbortWithStatusJSON(err.Status, err)
+			return
+		} else if gang.Admin == "" {
 			gctx.AbortWithStatus(http.StatusUnauthorized)
+			return
+		} else if gang.Streaming {
+			// Cannot do anything related to content while its being streamed
+			gctx.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
 		if gctx.Request.Method == "DELETE" {

@@ -19,7 +19,8 @@ func SSEConnManagerMiddleware(service Service, sseRepo Repository, logger log.Lo
 		if !ok {
 			// Type assertion error
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in SSEConnMiddleware")
-			gctx.JSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
 		}
 		// Add the username into DB SSE Bucket
 		dberr := sseRepo.AddClient(gctx, logger, user.Username)

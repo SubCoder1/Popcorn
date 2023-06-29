@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  # Redis
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - cnet
+    volumes:
+      - rdb:/data
+    restart: always
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+  # Popcorn
+  popcorn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: popcorn-docker:latest
+    container_name: popcorn
+    ports:
+      - "8000:8000"
+    env_file:
+      - config/secrets.env
+      - config/dev.env
+    depends_on:
+      - redis
+    networks:
+      - cnet
+    command: server
+
+volumes:
+  rdb:
+    driver: local
+networks:
+  cnet:
+    driver: bridge

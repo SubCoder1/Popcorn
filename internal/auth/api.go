@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var domain string = os.Getenv("SRV_ADDR")
+var domain string = os.Getenv("CLI_ADDR")
 
 // Registers all of the REST API handlers related to internal package auth onto the gin server.
 func APIHandlers(router *gin.Engine, authService Service, AuthWithAcc gin.HandlerFunc, AuthWithRef gin.HandlerFunc, logger log.Logger) {
@@ -62,9 +62,9 @@ func register(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["access_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, access_token_cookie)
 		refresh_token_cookie := &http.Cookie{
@@ -74,9 +74,9 @@ func register(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["refresh_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
@@ -119,9 +119,9 @@ func login(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["access_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, access_token_cookie)
 		refresh_token_cookie := &http.Cookie{
@@ -131,9 +131,9 @@ func login(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["refresh_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
@@ -164,9 +164,9 @@ func logout(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   0,
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, access_token_cookie)
 		refresh_token_cookie := &http.Cookie{
@@ -174,11 +174,11 @@ func logout(authService Service, logger log.Logger) gin.HandlerFunc {
 			Value:    "",
 			Expires:  time.Now(),
 			MaxAge:   0,
-			Domain:   domain,
+			Domain:   "localhost",
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, refresh_token_cookie)
 
@@ -220,9 +220,9 @@ func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["access_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, access_token_cookie)
 		refresh_token_cookie := &http.Cookie{
@@ -232,9 +232,9 @@ func refresh_token(authService Service, logger log.Logger) gin.HandlerFunc {
 			MaxAge:   token["refresh_token_maxAge"].(int),
 			Domain:   domain,
 			Path:     "/api",
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(gctx.Writer, refresh_token_cookie)
 

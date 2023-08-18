@@ -70,9 +70,11 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 		RoomCreate:     no,
 		RoomList:       no,
 		RoomRecord:     no,
+		Recorder:       no,
 		CanPublish:     &no,
 		CanSubscribe:   &yes,
 		CanPublishData: &no,
+		IngressAdmin:   no,
 	}
 	at.AddGrant(grant).
 		SetIdentity(config.Identity).
@@ -191,10 +193,10 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		"-re",
 		"-i", "./uploads/"+config.Content,
 		"-c:v", "libx264",
-		"-b:v", "3M",
 		"-loglevel", "error",
 		"-stats",
 		"-preset:v", "veryfast",
+		"-b:v", "3M",
 		"-profile:v", "high",
 		"-c:a", "aac",
 		"-b:a", "128k",

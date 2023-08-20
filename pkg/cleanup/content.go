@@ -5,14 +5,16 @@ import (
 	"os"
 )
 
+var UPLOAD_PATH string = "./uploads/"
+
 // Helper method to delete file due to any issues found during or post upload
-func DeleteContentFiles(filepath string, logger log.Logger) {
-	if len(filepath) != 0 {
+func DeleteContentFiles(contentID string, logger log.Logger) {
+	if len(contentID) != 0 {
 		ext := []string{"", ".info"}
 		for i := 0; i < len(ext); i++ {
-			oserr := os.Remove(filepath + ext[i])
+			oserr := os.Remove(UPLOAD_PATH + contentID + ext[i])
 			if oserr != nil {
-				logger.Error().Err(oserr).Msgf("Error occured during deleting content file - %s", filepath+ext[i])
+				logger.Error().Err(oserr).Msgf("Error occured during deleting content file - %s", UPLOAD_PATH+contentID+ext[i])
 			}
 		}
 	}

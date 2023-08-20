@@ -263,7 +263,7 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 	// Delete ingress
 	deleteIngress(ctx, logger, ingressClient, config.RoomName)
 	// Delete gang content files
-	cleanup.DeleteContentFiles("./uploads/"+config.Content, logger)
+	cleanup.DeleteContentFiles(config.Content, logger)
 	// Erase gang content data
 	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", false)
 	// Notify the members that stream has stopped

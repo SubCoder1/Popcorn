@@ -488,7 +488,7 @@ func (s service) delgang(ctx context.Context, admin string) error {
 	}
 
 	// Delete uploaded gang contents
-	go cleanup.DeleteContentFiles("./uploads/"+oldGangData.ContentID, s.logger)
+	go cleanup.DeleteContentFiles(oldGangData.ContentID, s.logger)
 
 	dberr = s.gangRepo.DelGang(ctx, s.logger, admin)
 	if dberr != nil {

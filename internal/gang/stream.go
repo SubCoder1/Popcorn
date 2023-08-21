@@ -172,7 +172,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		ParticipantName:     config.Identity,
 		Video: &livekit.IngressVideoOptions{
 			EncodingOptions: &livekit.IngressVideoOptions_Preset{
-				Preset: livekit.IngressVideoEncodingPreset_H264_720P_30FPS_3_LAYERS,
+				Preset: livekit.IngressVideoEncodingPreset_H264_1080P_30FPS_3_LAYERS,
 			},
 		},
 		Audio: &livekit.IngressAudioOptions{

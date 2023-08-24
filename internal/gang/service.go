@@ -392,6 +392,11 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 		// Error in bootmember()
 		return dberr
 	}
+	// Remove member from ongoing stream
+	if joinedGang.Streaming {
+		s.livekit_config.RoomName = "room:" + joinedGang.Admin
+		RemoveGangMemberFromStream(ctx, s.logger, s.livekit_config, boot.Member)
+	}
 	// Send notification to gang members
 	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, joinedGang.Admin)
 	if dberr == nil {

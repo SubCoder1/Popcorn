@@ -29,5 +29,7 @@ RUN cp /usr/share/zoneinfo/$TZ /etc/localtime
 # Copy exec from builder
 COPY --from=builder /Popcorn/main /usr/bin/server
 
+EXPOSE 8080
+
 # Run the executable.
 CMD [ "server" ]

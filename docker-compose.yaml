@@ -8,7 +8,7 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - cnet
+      - popcorn-network
     volumes:
       - rdb:/data
     restart: always
@@ -18,22 +18,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: popcorn-docker:latest
+    image: popcorn:latest
     container_name: popcorn
     ports:
-      - "8000:8000"
+      - "8080:8080"
     env_file:
       - config/secrets.env
       - config/dev.env
     depends_on:
       - redis
     networks:
-      - cnet
+      - popcorn-network
     command: server
 
 volumes:
   rdb:
     driver: local
 networks:
-  cnet:
-    driver: bridge
+  popcorn-network:
+    name: popcorn-network
+    external: true

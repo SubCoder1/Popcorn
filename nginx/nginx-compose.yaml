@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./nginx.conf:/etc/nginx/conf.d/default.conf"
+    networks:
+      - popcorn-network
+
+networks:
+  popcorn-network:
+    name: popcorn-network
+    external: true

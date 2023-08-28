@@ -7,4 +7,63 @@ Lets assume you're very far away from your friends & family, but you'll want to 
 Popcorn lets you create a virtual room where everyone can join, chat and watch movie together! 
 This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
 
-Its currently under development.
+### Requirements (Docker)
+
+**Docker** <24 or above>
+
+### Requirements (Without Docker)
+
+**Go** <1.20 or above>
+
+**Redis** <5 or above>
+
+**Node** <20 or above>
+
+**NPM** <9 or above>
+
+**VueJS** <3 or above>
+
+## Installation (With Docker)
+
+1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
+
+2. Clone this repository and run it using the command below:
+   
+   ```console
+   docker compose --env-file=./config/secrets.env up --build
+   ```
+3. Launch the nginx docker container, which'll receive both the backend and the frontend's traffic:
+
+   ```console
+   cd nginx/
+   
+   docker compose -f nginx-compose.yaml up --build 
+   ```
+
+4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
+
+    ```console
+    docker compose up --build
+    ```
+5. Finally, Open http://localhost and try it out!
+
+## Installation (without Docker)
+
+1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
+
+2. Clone this repository and run it using the command below (Make sure redis-server is installed):
+
+   ```console
+   go mod download
+
+   make load-db
+
+   make local
+   ```
+
+4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
+
+   ```console
+   npm run serve -- --port 8081
+   ```
+   

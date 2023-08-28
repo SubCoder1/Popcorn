@@ -67,4 +67,4 @@ This repository presents the server side of Popcorn, while the frontend is prese
    ```console
    npm run serve -- --port 8081
    ```
-   
+5. Finally, Open http://localhost:8081 and try it out!   

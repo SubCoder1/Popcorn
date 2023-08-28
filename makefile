@@ -4,12 +4,12 @@
 BINARY_NAME = Popcorn
 
 # This line is to ensure the targets aren't considered as files.
-.PHONY: load-dev-env dev-build dev test clean
+.PHONY: load-local-env local-build local test clean
 
 # This target loads development environment variables via dev.conf.
-load-dev-env:
-	@echo "Loading dev.env"
-    include config/dev.env
+load-local-env:
+	@echo "Loading local.env"
+    include config/local.env
     include config/secrets.env
     export
 
@@ -18,12 +18,12 @@ load-db:
 	sudo service redis-server restart
 
 # [Unix] Build command for dev environment.
-dev-build: load-dev-env
+local-build: load-local-env
 	@echo "Building Popcorn"
 	go build -o ${BINARY_NAME}.exe ./cmd/server/.
 
 # [Unix] Command to run the compiled file after build.
-dev: dev-build
+local: local-build
 	./${BINARY_NAME}.exe
 
 # Command to run all Popcorn tests.

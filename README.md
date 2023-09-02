@@ -11,7 +11,7 @@ This repository presents the server side of Popcorn, while the frontend is prese
 
 ## Architecture
 
-<img width="1840" alt="Popcorn architecture (1)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/07c74836-fb1d-4c26-9dd5-a830753563b7">
+<img width="1840" alt="Popcorn architecture (2)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/5e39d781-04ed-4351-838b-0f044e660358">
 
 ## Requirements (Without Docker)
 
@@ -29,25 +29,31 @@ This repository presents the server side of Popcorn, while the frontend is prese
 
 1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
 
-2. Clone this repository and run it using the command below:
+2. Create a docker network using the command below:
+   ```console
+   docker network create -d bridge popcorn-network
+   ``` 
+
+4. Clone this repository and run it using the command below:
    
    ```console
    docker compose --env-file=./config/secrets.env up --build
    ```
-3. Launch the nginx docker container, which'll receive both the backend and the frontend's traffic:
 
-   ```console
-   cd nginx/
-   
-   docker compose -f nginx-compose.yaml up --build 
-   ```
-
-4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
+5. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
 
     ```console
     docker compose up --build
     ```
-5. Finally, Open http://localhost and try it out!
+6. Launch the nginx docker container, which'll receive both the backend and the frontend's traffic:
+
+   ```console
+   // In Popcorn repository
+   cd nginx/
+   
+   docker compose -f nginx-compose.yaml up --build 
+   ```
+7. Finally, Open http://localhost and try it out!
 
 ## Installation (without Docker)
 

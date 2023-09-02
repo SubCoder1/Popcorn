@@ -9,11 +9,8 @@ Lets assume you're very far away from your friends & family, but you'll want to 
 Popcorn lets you create a virtual room where everyone can join, chat and watch movie together! 
 This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
 
-### Requirements (Docker)
 
-**Docker** <24 or above>
-
-### Requirements (Without Docker)
+## Requirements (Without Docker)
 
 **Go** <1.20 or above>
 

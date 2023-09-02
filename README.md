@@ -11,8 +11,7 @@ This repository presents the server side of Popcorn, while the frontend is prese
 
 ## Architecture
 
-<img width="1840" alt="Popcorn architecture" src="https://github.com/SubCoder1/Popcorn/assets/40127554/cc96bc6b-4571-4173-968a-833ca6721233">
-
+<img width="1840" alt="Popcorn architecture (1)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/07c74836-fb1d-4c26-9dd5-a830753563b7">
 
 ## Requirements (Without Docker)
 

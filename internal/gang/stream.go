@@ -22,6 +22,8 @@ import (
 	lksdk "github.com/livekit/server-sdk-go"
 )
 
+var UPLOAD_PATH string = os.Getenv("UPLOAD_DIR")
+
 type LivekitConfig struct {
 	// Host url of livekit cloud
 	Host string
@@ -191,7 +193,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 	ffmpegCmd := exec.Command(
 		"ffmpeg",
 		"-re",
-		"-i", "./uploads/"+config.Content,
+		"-i", UPLOAD_PATH+config.Content,
 		"-c:v", "libx264",
 		"-loglevel", "error",
 		"-stats",

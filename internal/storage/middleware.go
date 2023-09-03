@@ -7,7 +7,10 @@ import (
 	"Popcorn/internal/errors"
 	"Popcorn/internal/gang"
 	"Popcorn/pkg/log"
+	"context"
 	"net/http"
+	"strconv"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +28,7 @@ func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.H
 			return
 		}
 		gangKey := "gang:" + user.Username
-		gang, dberr := gangRepo.GetGang(ctx, logger, gangKey, user.Username, false)
+		gang, dberr := gangRepo.GetGang(gctx, logger, gangKey, user.Username, false)
 		if dberr != nil {
 			// Error occured, might be validation or server error
 			err, ok := dberr.(errors.ErrorResponse)
@@ -44,6 +47,22 @@ func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.H
 			gctx.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
+		// Check if enough disk space is available to accept another content
+		// Convert MAX_UPLOAD_SIZE to int64
+		contentUploadSize, err := strconv.ParseInt(MAX_UPLOAD_SIZE, 10, 64)
+		if err != nil {
+			// Set default to 524MBs
+			contentUploadSize = 524288000
+		}
+		diskSpaceAvail, err := getAvailableDiskSpace(gctx, logger)
+		if err != nil {
+			gctx.AbortWithStatus(http.StatusInternalServerError)
+			return
+		} else if diskSpaceAvail-52428800 < uint64(contentUploadSize) {
+			// Not enough space available
+			gctx.AbortWithStatus(http.StatusInsufficientStorage)
+			return
+		}
 		if gctx.Request.Method == "DELETE" {
 			// Erase content ID and filename from DB
 			defer func() {
@@ -53,4 +72,16 @@ func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.H
 		gctx.Request.Header.Add("User", user.Username) // to be used in tusd callbacks
 		gctx.Next()
 	}
+}
+
+// Helper method to get available disk space
+func getAvailableDiskSpace(ctx context.Context, logger log.Logger) (uint64, error) {
+	fs := syscall.Statfs_t{}
+	err := syscall.Statfs(UPLOAD_PATH, &fs)
+	if err != nil {
+		// Error occured in Statfs()
+		logger.WithCtx(ctx).Error().Err(err).Msg("Error occured while trying to fetch available disk space")
+		return 0, err
+	}
+	return fs.Bfree * uint64(fs.Bsize), err
 }

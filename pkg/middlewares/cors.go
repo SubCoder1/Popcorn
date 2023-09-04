@@ -31,6 +31,7 @@ func SSECORSMiddleware() gin.HandlerFunc {
 		gctx.Writer.Header().Set("Content-Type", "text/event-stream")
 		gctx.Writer.Header().Set("Cache-Control", "no-cache")
 		gctx.Writer.Header().Set("Connection", "keep-alive")
+		gctx.Writer.Header().Set("X-Accel-Buffering", "no")
 		gctx.Next()
 	}
 }

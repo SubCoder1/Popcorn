@@ -6,7 +6,6 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +39,7 @@ func SSEConnManagerMiddleware(service Service, sseRepo Repository, logger log.Lo
 		defer func() {
 			// Send closed connection to event server
 			if service.GetOrSetEvent(gctx).TotalClients[client.ID] != nil {
-				logger.WithCtx(gctx).Info().Msg(fmt.Sprintf("Closing SSE connection : %s", client.ID))
+				logger.WithCtx(gctx).Info().Msgf("Closing SSE connection : %s", client.ID)
 				service.GetOrSetEvent(gctx).ClosedClients <- client
 			}
 		}()

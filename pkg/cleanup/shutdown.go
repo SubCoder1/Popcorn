@@ -6,7 +6,6 @@ package cleanup
 import (
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -33,7 +32,7 @@ func GracefulShutdown(ctx context.Context, logger log.Logger, timeout time.Durat
 
 		// Force exit after timeout duration has been elapsed
 		force := time.AfterFunc(timeout, func() {
-			logger.WithCtx(ctx).Warn().Msg(fmt.Sprintf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds()))
+			logger.WithCtx(ctx).Warn().Msgf("Timeout of %fs has been elapsed. Forcing shutdown!", timeout.Seconds())
 			os.Exit(2)
 		})
 		defer force.Stop()

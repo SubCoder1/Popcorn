@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/h2non/filetype"
@@ -20,33 +21,40 @@ import (
 )
 
 var (
-	store         filestore.FileStore
-	composer      *tusd.StoreComposer
-	handler       *tusd.UnroutedHandler
-	tusderr       error
-	content_types map[string]string = map[string]string{"video/mp4": "mp4", "video/x-msvideo": "avi", "video/x-matroska": "mkv"}
-	ctx           context.Context   = context.Background()
-	content_dir   string            = "./uploads"
+	store           filestore.FileStore
+	composer        *tusd.StoreComposer
+	handler         *tusd.UnroutedHandler
+	tusderr         error
+	content_types   map[string]string = map[string]string{"video/mp4": "mp4", "video/x-msvideo": "avi", "video/x-matroska": "mkv"}
+	ctx             context.Context   = context.Background()
+	UPLOAD_PATH     string            = os.Getenv("UPLOAD_DIR")
+	MAX_UPLOAD_SIZE string            = os.Getenv("MAX_UPLOAD_SIZE")
 )
 
 // Returns a fresh or existing Tusd Unrouted handler to help in gang content upload
 func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, logger log.Logger) *tusd.UnroutedHandler {
 	// Check if upload directory exists, if not make one
-	if _, err := os.Stat(content_dir); errors.Is(err, os.ErrNotExist) {
-		err := os.MkdirAll(content_dir, 0777)
+	if _, err := os.Stat(UPLOAD_PATH); errors.Is(err, os.ErrNotExist) {
+		err := os.MkdirAll(UPLOAD_PATH, 0777)
 		if err != nil {
-			logger.Fatal().Err(err).Msg("Error during creating upload directory for tusd storage")
+			logger.WithCtx(ctx).Fatal().Err(err).Msg("Error during creating upload directory for tusd storage")
 		}
 	}
+	// Convert MAX_UPLOAD_SIZE to int64
+	contentUploadSize, err := strconv.ParseInt(MAX_UPLOAD_SIZE, 10, 64)
+	if err != nil {
+		// Set default to 524MBs
+		contentUploadSize = 524288000
+	}
 
-	store = filestore.FileStore{Path: content_dir}
+	store = filestore.FileStore{Path: UPLOAD_PATH}
 
 	composer = tusd.NewStoreComposer()
 	store.UseIn(composer)
 
 	handler, tusderr = tusd.NewUnroutedHandler(tusd.Config{
 		BasePath:                "/api/upload_content",
-		MaxSize:                 524288000,
+		MaxSize:                 contentUploadSize,
 		StoreComposer:           composer,
 		NotifyCompleteUploads:   true,
 		NotifyTerminatedUploads: true,
@@ -72,7 +80,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 		},
 		PreFinishResponseCallback: func(hook tusd.HookEvent) error {
 			// Validate uploaded file and add filename and ID into gang data upon success
-			filepath := content_dir + "/" + hook.Upload.ID
+			filepath := UPLOAD_PATH + hook.Upload.ID
 			file, oserr := os.Open(filepath)
 			if oserr != nil {
 				logger.Error().Err(oserr).Msg("Cannot open content - " + hook.Upload.ID)
@@ -117,11 +125,15 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 					}
 				}
 			})
+
+			diskSpaceAvail, _ := getAvailableDiskSpace(ctx, logger)
+			logger.WithCtx(ctx).Info().Msgf("Available disk space - %d", diskSpaceAvail)
+
 			return nil
 		},
 	})
 	if tusderr != nil {
-		logger.Fatal().Err(tusderr).Msg("Unable to create tusd handler")
+		logger.WithCtx(ctx).Fatal().Err(tusderr).Msg("Unable to create tusd handler")
 	}
 	// Start a goroutine for receiving events from the handler whenever
 	// an upload is completed. The event will contains details about the upload

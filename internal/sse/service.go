@@ -6,7 +6,6 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -60,14 +59,14 @@ func (s service) Listen(ctx context.Context) {
 		// Add new available client
 		case client := <-s.GetOrSetEvent(ctx).NewClients:
 			s.GetOrSetEvent(ctx).TotalClients[client.ID] = client.Channel
-			s.logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Added client %s into Popcorn SSE event channel", client.ID))
+			s.logger.WithCtx(ctx).Info().Msgf("Added client %s into Popcorn SSE event channel", client.ID)
 
 		// Remove closed client
 		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
 			close(client.Channel)
 			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
 			s.sseRepo.RemoveClient(ctx, s.logger, client.ID)
-			s.logger.WithCtx(ctx).Info().Msg(fmt.Sprintf("Removed client %s from Popcorn SSE event channel", client.ID))
+			s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
 
 		// Broadcast message to a specific client with client ID fetched from eventMsg.To
 		case eventMsg := <-s.GetOrSetEvent(ctx).Message:

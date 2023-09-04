@@ -16,7 +16,6 @@ import (
 	"Popcorn/pkg/middlewares"
 	"Popcorn/pkg/validations"
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -44,7 +43,7 @@ func main() {
 		logger.Fatal().Err(errors.New("os couldn't load Environment variables.")).Msg("")
 	}
 	logger.Info().Msg("Welcome to Popcorn")
-	logger.Info().Msg(fmt.Sprintf("Popcorn Environment: %s", environment))
+	logger.Info().Msgf("Popcorn Environment: %s", environment)
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
@@ -71,7 +70,7 @@ func main() {
 	}
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
-		logger.Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
+		logger.Info().Msgf("Popcorn service running at: %s", srvaddr+":"+srvport)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Fatal().Err(err).Msg("Error in ListenAndServe()")
 		}

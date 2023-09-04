@@ -109,7 +109,7 @@ func TestMain(m *testing.M) {
 func TestGracefulShutdownSIGINT(t *testing.T) {
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
-		logger.Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
+		logger.Info().Msgf("Popcorn service running at: %s", srvaddr+":"+srvport)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Error().Err(err).Msg("Error in ListenAndServe()")
 		}
@@ -140,7 +140,7 @@ func TestGracefulShutdownSIGINT(t *testing.T) {
 func TestGracefulShutdownSIGTERM(t *testing.T) {
 	// ListenAndServe is a blocking operation, putting it a goroutine
 	go func() {
-		logger.Info().Msg(fmt.Sprintf("Popcorn service running at: %s", srvaddr+":"+srvport))
+		logger.Info().Msgf("Popcorn service running at: %s", srvaddr+":"+srvport)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Error().Err(err).Msg("Error in ListenAndServe()")
 		}

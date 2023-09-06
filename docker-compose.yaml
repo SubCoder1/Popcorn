@@ -24,7 +24,7 @@ services:
       - "8080:8080"
     env_file:
       - config/secrets.env
-      - config/dev.env
+      - config/prod.env
     depends_on:
       - redis
     networks:

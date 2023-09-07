@@ -59,6 +59,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 		NotifyCompleteUploads:   true,
 		NotifyTerminatedUploads: true,
 		DisableDownload:         true,
+		RespectForwardedHeaders: true,
 		PreUploadCreateCallback: func(hook tusd.HookEvent) error {
 			// Validate metadata attached with the upload request
 			user := hook.HTTPRequest.Header.Get("User")

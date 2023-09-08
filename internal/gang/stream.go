@@ -10,7 +10,6 @@ import (
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -182,11 +181,18 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		return errors.InternalServerError("")
 	}
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	go func() {
 		for range ticker.C {
-			fmt.Println(info.GetState())
+			ingList, _ := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
+			for _, ing := range ingList.Items {
+				if ing.State.Status == livekit.IngressState_ENDPOINT_INACTIVE {
+					// Stream finished
+					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+					ticker.Stop()
+				}
+			}
 		}
 	}()
 

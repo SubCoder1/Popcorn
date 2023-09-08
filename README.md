@@ -5,6 +5,9 @@
 ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
+Popcorn is live! at https://popcorntv.click 
+
+
 Lets assume you're very far away from your friends & family, but you'll want to watch a movie together. 
 Popcorn lets you create a virtual room where everyone can join, chat and watch movie together! 
 This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).

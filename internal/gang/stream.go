@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -23,6 +22,7 @@ import (
 )
 
 var UPLOAD_PATH string = os.Getenv("UPLOAD_DIR")
+var APP_URL string = os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
 
 type LivekitConfig struct {
 	// Host url of livekit cloud
@@ -168,20 +168,12 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 
 	// Create a new ingress request
 	ingressRequest := &livekit.CreateIngressRequest{
+		InputType:           livekit.IngressInput_URL_INPUT,
 		Name:                "ingress:" + config.Identity,
 		RoomName:            config.RoomName,
 		ParticipantIdentity: "gang_admin",
 		ParticipantName:     config.Identity,
-		Video: &livekit.IngressVideoOptions{
-			EncodingOptions: &livekit.IngressVideoOptions_Preset{
-				Preset: livekit.IngressVideoEncodingPreset_H264_1080P_30FPS_3_LAYERS,
-			},
-		},
-		Audio: &livekit.IngressAudioOptions{
-			EncodingOptions: &livekit.IngressAudioOptions_Preset{
-				Preset: livekit.IngressAudioEncodingPreset_OPUS_MONO_64KBS,
-			},
-		},
+		Url:                 APP_URL + "/api/upload_content/" + config.Content,
 	}
 	info, ingerr := ingressClient.CreateIngress(ctx, ingressRequest)
 	if ingerr != nil {
@@ -190,51 +182,28 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		return errors.InternalServerError("")
 	}
 
-	ffmpegCmd := exec.Command(
-		"ffmpeg",
-		"-re",
-		"-i", UPLOAD_PATH+config.Content,
-		"-c:v", "libx264",
-		"-loglevel", "error",
-		"-stats",
-		"-preset:v", "veryfast",
-		"-b:v", "3M",
-		"-profile:v", "high",
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-f", "flv",
-		fmt.Sprintf("%s/%s", info.GetUrl(), info.GetStreamKey()),
-	)
+	ticker := time.NewTicker(2 * time.Second)
+
+	go func() {
+		for range ticker.C {
+			fmt.Println(info.GetState())
+		}
+	}()
+
 	// Signal to close running ffmpeg process on server shutdown
 	go func() {
 		s := make(chan os.Signal, 1)
 		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-		closing_signal := <-s
-		err := ffmpegCmd.Process.Signal(closing_signal)
-		if err != nil {
-			// Error occured during force-closing ffmpeg process
-			logger.WithCtx(ctx).Error().Err(err).Msg("Error occured during force-closing ffmpeg process")
-		} else {
-			updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
-		}
-	}()
-	// Start the stream process in a separate goroutine
-	go func() {
-		output, execerr := ffmpegCmd.CombinedOutput()
-		if execerr != nil {
-			logger.WithCtx(ctx).Error().Err(execerr).Msgf("Failed to run ffmpeg command - %s", string(output))
-		}
+		<-s
+		ticker.Stop()
 		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
 	}()
 	// Another goroutine to handle user triggered force-close of this stream
 	go func() {
 		streamRecords[config.RoomName] = make(close_stream_signal, 1)
 		<-streamRecords[config.RoomName]
-		err := ffmpegCmd.Process.Kill()
-		if err != nil {
-			// Error during killing ffmpeg process
-			logger.WithCtx(ctx).Error().Err(err).Msgf("Error during killing off ffmpeg process for %s", config.RoomName)
-		}
+		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		ticker.Stop()
 		close(streamRecords[config.RoomName])
 		delete(streamRecords, config.RoomName)
 	}()

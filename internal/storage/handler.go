@@ -25,7 +25,7 @@ var (
 	composer        *tusd.StoreComposer
 	handler         *tusd.UnroutedHandler
 	tusderr         error
-	content_types   map[string]string = map[string]string{"video/mp4": "mp4", "video/x-msvideo": "avi", "video/x-matroska": "mkv"}
+	content_types   map[string]string = map[string]string{"video/mp4": "mp4", "video/x-matroska": "mkv"}
 	ctx             context.Context   = context.Background()
 	UPLOAD_PATH     string            = os.Getenv("UPLOAD_DIR")
 	MAX_UPLOAD_SIZE string            = os.Getenv("MAX_UPLOAD_SIZE")
@@ -58,7 +58,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 		StoreComposer:           composer,
 		NotifyCompleteUploads:   true,
 		NotifyTerminatedUploads: true,
-		DisableDownload:         true,
+		DisableDownload:         false,
 		RespectForwardedHeaders: true,
 		PreUploadCreateCallback: func(hook tusd.HookEvent) error {
 			// Validate metadata attached with the upload request

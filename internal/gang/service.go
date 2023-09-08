@@ -637,6 +637,8 @@ func (s service) stopcontent(ctx context.Context, admin string) error {
 	}
 
 	s.livekit_config.RoomName = "room:" + admin
+	s.livekit_config.Content = gang.ContentID
+	s.livekit_config.Identity = admin
 	if stream, ok := streamRecords[s.livekit_config.RoomName]; ok {
 		stream <- true
 	} else {

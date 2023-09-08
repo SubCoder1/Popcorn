@@ -10,12 +10,12 @@ import (
 )
 
 func APIHandlers(router *gin.Engine, storage_handler *tusd.UnroutedHandler, authWithAcc, validateAdmin gin.HandlerFunc, logger log.Logger) {
-	uploadGroup := router.Group("/api/upload_content", authWithAcc, validateAdmin)
+	uploadGroup := router.Group("/api/upload_content")
 	{
-		uploadGroup.POST("", gin.WrapF(storage_handler.PostFile))
+		uploadGroup.POST("", authWithAcc, validateAdmin, gin.WrapF(storage_handler.PostFile))
 		uploadGroup.GET("/:id", gin.WrapF(storage_handler.GetFile))
-		uploadGroup.HEAD("/:id", gin.WrapF(storage_handler.HeadFile))
-		uploadGroup.PATCH("/:id", gin.WrapF(storage_handler.PatchFile))
-		uploadGroup.DELETE("/:id", gin.WrapF(storage_handler.DelFile))
+		uploadGroup.HEAD("/:id", authWithAcc, validateAdmin, gin.WrapF(storage_handler.HeadFile))
+		uploadGroup.PATCH("/:id", authWithAcc, validateAdmin, gin.WrapF(storage_handler.PatchFile))
+		uploadGroup.DELETE("/:id", authWithAcc, validateAdmin, gin.WrapF(storage_handler.DelFile))
 	}
 }

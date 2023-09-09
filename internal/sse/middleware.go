@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SSEConnManagerMiddleware(service Service, sseRepo Repository, logger log.Logger) gin.HandlerFunc {
+func SSEConnManagerMiddleware(service Service, logger log.Logger) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the joingang service
 		user, ok := gctx.Value("User").(entity.User)
@@ -20,12 +20,6 @@ func SSEConnManagerMiddleware(service Service, sseRepo Repository, logger log.Lo
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in SSEConnMiddleware")
 			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
-		}
-		// Add the username into DB SSE Bucket
-		dberr := sseRepo.AddClient(gctx, logger, user.Username)
-		if dberr != nil {
-			// Issue in AddClient
-			gctx.AbortWithStatus(http.StatusInternalServerError)
 		}
 		// Initialize client
 		client := entity.SSEClient{

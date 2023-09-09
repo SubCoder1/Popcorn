@@ -116,12 +116,11 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	authRepo := auth.NewRepository(dbConnWrp)
 	userRepo := user.NewRepository(dbConnWrp)
 	gangRepo := gang.NewRepository(dbConnWrp)
-	sseRepo := sse.NewRepository(dbConnWrp)
 
 	// Initialize internal Service instance
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
-	sseService := sse.NewService(sseRepo, logger)
+	sseService := sse.NewService(logger)
 	gangService := gang.NewService(gang.LivekitConfig{
 		Host:      stream_host,
 		ApiKey:    stream_api_key,
@@ -135,7 +134,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Declare internal middlewares here
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
-	sseConnMiddleware := sse.SSEConnManagerMiddleware(sseService, sseRepo, logger)
+	sseConnMiddleware := sse.SSEConnManagerMiddleware(sseService, logger)
 	tusAuthMiddleware := storage.ContentStorageMiddleware(logger, gangRepo)
 
 	// Register handlers of different internal packages in Popcorn

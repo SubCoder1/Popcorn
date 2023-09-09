@@ -119,10 +119,9 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	// Repositories needed by gang APIs and services to work
 	userRepo = user.NewRepository(dbConnWrp)
 	gangRepo = NewRepository(dbConnWrp)
-	sseRepo := sse.NewRepository(dbConnWrp)
 
 	// Register internal package gang handler
-	sseService := sse.NewService(sseRepo, logger)
+	sseService := sse.NewService(logger)
 	gangService := NewService(LivekitConfig{
 		Host:      "ws://localhost:8000",
 		ApiKey:    "LivekitAPI",

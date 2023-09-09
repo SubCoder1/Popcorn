@@ -21,13 +21,12 @@ type Service interface {
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	sseRepo Repository
-	logger  log.Logger
+	logger log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(sseRepo Repository, logger log.Logger) Service {
-	return service{sseRepo, logger}
+func NewService(logger log.Logger) Service {
+	return service{logger}
 }
 
 // Global Instance of entity.SSE initialized via GetOrSetEvent().
@@ -65,7 +64,6 @@ func (s service) Listen(ctx context.Context) {
 		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
 			close(client.Channel)
 			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
-			s.sseRepo.RemoveClient(ctx, s.logger, client.ID)
 			s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
 
 		// Broadcast message to a specific client with client ID fetched from eventMsg.To

@@ -382,9 +382,17 @@ func (s service) acceptganginvite(ctx context.Context, user entity.User, invite 
 		// Error in GetGang()
 		return dberr
 	}
-	if gang.IsAdmin && gang.Streaming {
-		// Kill the streaming process
-		s.stopcontent(ctx, gang.Admin)
+	if gang.IsAdmin {
+		if gang.Streaming {
+			// Kill the streaming process
+			s.stopcontent(ctx, gang.Admin)
+		}
+		// Delete previous gang data first
+		err := s.delgang(ctx, user.Username)
+		if err != nil {
+			// Issues in delgang() service
+			return err
+		}
 	}
 
 	dberr = s.gangRepo.AcceptGangInvite(ctx, s.logger, invite)

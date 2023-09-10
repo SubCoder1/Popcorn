@@ -21,13 +21,12 @@ type Service interface {
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	sseRepo Repository
-	logger  log.Logger
+	logger log.Logger
 }
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(sseRepo Repository, logger log.Logger) Service {
-	return service{sseRepo, logger}
+func NewService(logger log.Logger) Service {
+	return service{logger}
 }
 
 // Global Instance of entity.SSE initialized via GetOrSetEvent().
@@ -57,20 +56,27 @@ func (s service) Listen(ctx context.Context) {
 	for {
 		select {
 		// Add new available client
-		case client := <-s.GetOrSetEvent(ctx).NewClients:
-			s.GetOrSetEvent(ctx).TotalClients[client.ID] = client.Channel
-			s.logger.WithCtx(ctx).Info().Msgf("Added client %s into Popcorn SSE event channel", client.ID)
+		case client, ok := <-s.GetOrSetEvent(ctx).NewClients:
+			if !ok {
+				s.logger.WithCtx(ctx).Error().Msgf("Error occured while setting new SSE channel for %s", client.ID)
+			} else {
+				s.GetOrSetEvent(ctx).TotalClients[client.ID] = client.Channel
+				s.logger.WithCtx(ctx).Info().Msgf("Added client %s into Popcorn SSE event channel", client.ID)
+			}
 
 		// Remove closed client
-		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
-			close(client.Channel)
-			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
-			s.sseRepo.RemoveClient(ctx, s.logger, client.ID)
-			s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
+		case client, ok := <-s.GetOrSetEvent(ctx).ClosedClients:
+			if ok {
+				close(client.Channel)
+				delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
+				s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
+			}
 
 		// Broadcast message to a specific client with client ID fetched from eventMsg.To
-		case eventMsg := <-s.GetOrSetEvent(ctx).Message:
-			s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] <- eventMsg
+		case eventMsg, ok := <-s.GetOrSetEvent(ctx).Message:
+			if ok && s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] != nil {
+				s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] <- eventMsg
+			}
 		}
 	}
 }
@@ -78,11 +84,11 @@ func (s service) Listen(ctx context.Context) {
 func Cleanup(ctx context.Context) error {
 	// This quit signal will close open stream API connections
 	close(quit)
-	go func(event *entity.SSE) {
+	go func() {
 		time.Sleep(1 * time.Second)
 		close(event.Message)
 		close(event.ClosedClients)
 		close(event.NewClients)
-	}(event)
+	}()
 	return nil
 }

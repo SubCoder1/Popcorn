@@ -175,9 +175,20 @@ func (r repository) DelGang(ctx context.Context, logger log.Logger, admin string
 		// Maybe expired or doesn't exist at all
 		return errors.BadRequest("Gang doesn't exist")
 	}
-	// Delete gang index from DB
-	r.delGangIndex(ctx, logger, fmt.Sprintf("gang:%s:%s", admin, gangData.Name))
-	// Delete gang member from DB
+	// We need to delete every gang-joined:<member> of this gang's current members
+	members, dberr := r.GetGangMembers(ctx, logger, admin)
+	if dberr != nil {
+		// Issues in GetGangMembers()
+		return dberr
+	}
+	for _, mem := range members {
+		dberr = r.db.Client().Del(ctx, "gang-joined:"+mem).Err()
+		if dberr != nil {
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error during deleting joined member's keys in DelGang()")
+			return errors.InternalServerError("")
+		}
+	}
+	// Delete gang members from DB
 	dberr = r.db.Client().Del(ctx, gangData.MembersListKey).Err()
 	if dberr != nil && dberr != redis.Nil {
 		// Issues in Del()
@@ -189,6 +200,8 @@ func (r repository) DelGang(ctx context.Context, logger log.Logger, admin string
 		// Issues in Del()
 		return dberr
 	}
+	// Delete gang index from DB
+	r.delGangIndex(ctx, logger, fmt.Sprintf("gang:%s:%s", admin, gangData.Name))
 	return nil
 }
 
@@ -308,8 +321,8 @@ func (r repository) GetJoinedGang(ctx context.Context, logger log.Logger, userna
 }
 
 // Returns a list of joined gang members.
-func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, username string) ([]string, error) {
-	membersList, dberr := r.db.Client().SMembers(ctx, "gang-members:"+username).Result()
+func (r repository) GetGangMembers(ctx context.Context, logger log.Logger, admin string) ([]string, error) {
+	membersList, dberr := r.db.Client().SMembers(ctx, "gang-members:"+admin).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SMembers() in gang.GetGangMembers")

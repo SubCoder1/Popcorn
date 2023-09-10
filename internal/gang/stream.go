@@ -56,6 +56,20 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 			return "", errors.BadRequest("user must create or join a gang")
 		}
 	}
+	// This method is called here to check if the room exists or not.
+	// If not, that means the token generated or fetched from the db is invalid.
+	_, err := createStreamRoomIfNotExists(ctx, logger, gangRepo, userRepo, LivekitConfig{
+		Host:      config.Host,
+		ApiKey:    config.ApiKey,
+		ApiSecret: config.ApiSecret,
+		Identity:  gang.Admin,
+		Content:   config.Content,
+		RoomName:  "room:" + gang.Admin,
+	})
+	if err != nil {
+		return "", err
+	}
+
 	// fetch from DB if user has an unexpired token already saved
 	streaming_token := userRepo.GetStreamingToken(ctx, logger, config.Identity)
 	if len(streaming_token) != 0 {
@@ -74,14 +88,14 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 		Recorder:       no,
 		CanPublish:     &no,
 		CanSubscribe:   &yes,
-		CanPublishData: &no,
+		CanPublishData: &yes,
 		IngressAdmin:   no,
 	}
 	at.AddGrant(grant).
 		SetIdentity(config.Identity).
 		SetValidFor(time.Hour * 3)
 
-	streaming_token, err := at.ToJWT()
+	streaming_token, err = at.ToJWT()
 	if err != nil {
 		logger.Error().Err(err).Msg("Error occured during fetching livekit client access token")
 		return "", errors.InternalServerError("")
@@ -93,49 +107,66 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 }
 
 // Helper to create a livekit room to be used for content streaming in Popcorn gangs.
-func createStreamRoom(ctx context.Context, logger log.Logger, gang_limit uint32, config LivekitConfig) error {
+func createStreamRoomIfNotExists(ctx context.Context, logger log.Logger, gangRepo Repository, userRepo user.Repository, config LivekitConfig) (bool, error) {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
-
 	roomList, rerr := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{config.RoomName}})
 	if rerr != nil {
-		// Error occured in livekit CreateRoom()
+		// Error occured in livekit ListRooms()
 		logger.WithCtx(ctx).Error().Err(rerr).Msg("Error occured while creating room in livekit.ListRooms()")
-		return errors.InternalServerError("")
+		return false, errors.InternalServerError("")
 	}
 	if len(roomList.Rooms) == 0 {
+		// Clear existing tokens of the previously created livekit room saved in db
+		members, dberr := gangRepo.GetGangMembers(ctx, logger, config.Identity)
+		if dberr != nil {
+			// Issue in GetGangMembers()
+			return false, dberr
+		}
+		for _, member := range members {
+			go userRepo.DelStreamingToken(ctx, logger, member)
+		}
+		// Create new livekit room
 		_, rerr := roomClient.CreateRoom(ctx, &livekit.CreateRoomRequest{
 			Name:            config.RoomName,
-			MaxParticipants: gang_limit,
+			MaxParticipants: 10,
 			EmptyTimeout:    10800,
+			MinPlayoutDelay: 0,
 		})
 		if rerr != nil {
 			// Error occured in livekit CreateRoom()
 			logger.WithCtx(ctx).Error().Err(rerr).Msg("Error occured while creating room in livekit.createStreamRoom()")
-			return errors.InternalServerError("")
+			return false, errors.InternalServerError("")
 		}
 		logger.WithCtx(ctx).Info().Msgf("Created livekit room for %s", config.RoomName)
+		return true, rerr
 	}
 
-	return rerr
+	return false, rerr
 }
 
 // Helper to delete room, triggered during delGang request from admin.
 func deleteStreamRoom(ctx context.Context, logger log.Logger, config LivekitConfig) error {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
-
-	_, rerr := roomClient.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: config.RoomName})
+	roomList, rerr := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{config.RoomName}})
 	if rerr != nil {
-		// Error occured in livekit.DeleteRoom()
-		logger.WithCtx(ctx).Error().Err(rerr).Msgf("Couldn't delete room - %s", config.RoomName)
+		// Error occured in livekit ListRooms()
+		logger.WithCtx(ctx).Error().Err(rerr).Msg("Error occured while creating room in livekit.ListRooms()")
 		return errors.InternalServerError("")
 	}
-
+	if len(roomList.Rooms) != 0 {
+		_, rerr = roomClient.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: config.RoomName})
+		if rerr != nil {
+			// Error occured in livekit.DeleteRoom()
+			logger.WithCtx(ctx).Error().Err(rerr).Msgf("Couldn't delete room - %s", config.RoomName)
+			return errors.InternalServerError("")
+		}
+	}
 	return rerr
 }
 
 // Helper to remove an user from the stream.
 // Triggered during leave gang or booting a member.
-func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config LivekitConfig, member string) error {
+func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config LivekitConfig, member string) {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
 	_, rerr := roomClient.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{
 		Room:     config.RoomName,
@@ -144,9 +175,7 @@ func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config L
 	if rerr != nil {
 		// Error occured in RemoveParticipant()
 		logger.WithCtx(ctx).Error().Err(rerr).Msg("Error occured during removing member in livekit.RemoveParticipant()")
-		return errors.InternalServerError("")
 	}
-	return nil
 }
 
 // Helper to create and return an IngressClient.

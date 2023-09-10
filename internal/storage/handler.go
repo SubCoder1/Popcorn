@@ -10,7 +10,6 @@ import (
 	"Popcorn/pkg/log"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -107,7 +106,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 				gang, _ := gangRepo.GetGang(ctx, logger, gangKey, user, false)
 
 				if len(gang.Name) != 0 && !gang.Streaming {
-					logger.Info().Msgf(fmt.Sprintf("Deleting unstreamed content files for: %s", gangKey))
+					logger.Info().Msgf("Deleting unstreamed content files for: %s", gangKey)
 					// Delete gang content files
 					cleanup.DeleteContentFiles(gang.ContentID, logger)
 					// Erase gang content data from DB

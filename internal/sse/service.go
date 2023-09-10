@@ -57,10 +57,6 @@ func (s service) Listen(ctx context.Context) {
 		select {
 		// Add new available client
 		case client, ok := <-s.GetOrSetEvent(ctx).NewClients:
-			if s.GetOrSetEvent(ctx).TotalClients[client.ID] != nil {
-				close(s.GetOrSetEvent(ctx).TotalClients[client.ID])
-				delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
-			}
 			if !ok {
 				s.logger.WithCtx(ctx).Error().Msgf("Error occured while setting new SSE channel for %s", client.ID)
 			} else {
@@ -69,14 +65,18 @@ func (s service) Listen(ctx context.Context) {
 			}
 
 		// Remove closed client
-		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
-			close(client.Channel)
-			delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
-			s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
+		case client, ok := <-s.GetOrSetEvent(ctx).ClosedClients:
+			if ok {
+				close(client.Channel)
+				delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
+				s.logger.WithCtx(ctx).Info().Msgf("Removed client %s from Popcorn SSE event channel", client.ID)
+			}
 
 		// Broadcast message to a specific client with client ID fetched from eventMsg.To
-		case eventMsg := <-s.GetOrSetEvent(ctx).Message:
-			s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] <- eventMsg
+		case eventMsg, ok := <-s.GetOrSetEvent(ctx).Message:
+			if ok && s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] != nil {
+				s.GetOrSetEvent(ctx).TotalClients[eventMsg.To] <- eventMsg
+			}
 		}
 	}
 }

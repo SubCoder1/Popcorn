@@ -26,7 +26,7 @@ type Service interface {
 	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
 	// Get gang invites received by user in Popcorn
 	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
-	// Get list of gang members of user created gang in Popcorn
+	// Get list of gang members of user created / joined gang in Popcorn
 	getgangmembers(ctx context.Context, username string) ([]entity.User, error)
 	// Join user into a gang
 	joingang(ctx context.Context, user entity.User, joinGangData entity.GangJoin) error
@@ -114,15 +114,6 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	}
 	gang.PassKey = hashedgangpk
 
-	// Create livekit room first
-	s.livekit_config.Identity = gang.Admin
-	s.livekit_config.RoomName = "room:" + gang.Admin
-	rerr := createStreamRoom(ctx, s.logger, uint32(gang.Limit), s.livekit_config)
-	if rerr != nil {
-		// Error occured in createStreamRoom()
-		return rerr
-	}
-
 	// Save gang data in DB
 	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, false)
 	if dberr != nil {
@@ -133,6 +124,14 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 			return errors.GenerateValidationErrorResponse([]error{valerr})
 		}
 		return dberr
+	}
+	// Create livekit room
+	s.livekit_config.Identity = gang.Admin
+	s.livekit_config.RoomName = "room:" + gang.Admin
+	_, rerr := createStreamRoomIfNotExists(ctx, s.logger, s.gangRepo, s.userRepo, s.livekit_config)
+	if rerr != nil {
+		// Error occured in createStreamRoom()
+		return rerr
 	}
 
 	return nil
@@ -198,15 +197,6 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		// Error occured in GetGang()
 		return entity.GangResponse{}, canCreate, canJoin, dberr
 	}
-	if gangData.Admin != "" {
-		s.livekit_config.Identity = gangData.Admin
-		s.livekit_config.RoomName = "room:" + gangData.Admin
-		rerr := createStreamRoom(ctx, s.logger, uint32(gangData.Limit), s.livekit_config)
-		if rerr != nil {
-			// Error occured in createStreamRoom()
-			return entity.GangResponse{}, canCreate, canJoin, rerr
-		}
-	}
 	// Don't send empty gang data
 	if (gangData != entity.GangResponse{}) {
 		return gangData, canCreate, canJoin, dberr
@@ -216,6 +206,36 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 	if dberr != nil {
 		// Error occured in GetJoinedGang()
 		return entity.GangResponse{}, canCreate, canJoin, dberr
+	}
+	if gangData.Admin != "" || gangJoinedData.Admin != "" {
+		if gangData.Admin != "" {
+			s.livekit_config.Identity = gangData.Admin
+			s.livekit_config.RoomName = "room:" + gangData.Admin
+		} else {
+			s.livekit_config.Identity = gangJoinedData.Admin
+			s.livekit_config.RoomName = "room:" + gangJoinedData.Admin
+		}
+		created, rerr := createStreamRoomIfNotExists(ctx, s.logger, s.gangRepo, s.userRepo, s.livekit_config)
+		if rerr != nil {
+			// Error occured in createStreamRoom()
+			return entity.GangResponse{}, canCreate, canJoin, rerr
+		}
+		if created {
+			// Tell the clients currently using the old token to refresh
+			members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, s.livekit_config.Identity)
+			go func() {
+				for _, member := range members {
+					if member != s.livekit_config.Identity {
+						data := entity.SSEData{
+							Data: nil,
+							Type: "tokenRefresh",
+							To:   member,
+						}
+						s.sseService.GetOrSetEvent(ctx).Message <- data
+					}
+				}
+			}()
+		}
 	}
 	// Don't send empty gang data
 	if (gangJoinedData != entity.GangResponse{}) {
@@ -230,7 +250,13 @@ func (s service) getganginvites(ctx context.Context, username string) ([]entity.
 }
 
 func (s service) getgangmembers(ctx context.Context, username string) ([]entity.User, error) {
-	membersList, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, username)
+	// gangObj could be an interface or an object of GangReponse
+	gangObj, _, _, _ := s.getgang(ctx, username)
+	gang, ok := gangObj.(entity.GangResponse)
+	if !ok {
+		return []entity.User{}, nil
+	}
+	membersList, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, gang.Admin)
 	if dberr != nil {
 		// Error occured in GetGangMembers()
 		return []entity.User{}, dberr
@@ -283,6 +309,8 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 		// Passkey didn't match
 		return errors.Unauthorized("PassKey didn't match")
 	}
+	// Erase stream token of user if exists
+	s.userRepo.DelStreamingToken(ctx, s.logger, user.Username)
 	dberr = s.gangRepo.JoinGang(ctx, s.logger, joinGangData, user.Username)
 	if dberr != nil {
 		// Error occured in JoinGang()
@@ -290,16 +318,17 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 	}
 	// Send notification to the gang page
 	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, joinGangData.Admin)
-	for _, member := range members {
-		go func(member string) {
+	user.Password = ""
+	go func() {
+		for _, member := range members {
 			data := entity.SSEData{
 				Data: user,
 				Type: "gangJoin",
 				To:   member,
 			}
 			s.sseService.GetOrSetEvent(ctx).Message <- data
-		}(member)
-	}
+		}
+	}()
 	return nil
 }
 
@@ -397,6 +426,8 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 		s.livekit_config.RoomName = "room:" + joinedGang.Admin
 		RemoveGangMemberFromStream(ctx, s.logger, s.livekit_config, boot.Member)
 	}
+	// Erase stream token of user if exists
+	s.userRepo.DelStreamingToken(ctx, s.logger, boot.Member)
 	// Send notification to gang members
 	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, joinedGang.Admin)
 	if dberr == nil {
@@ -435,11 +466,7 @@ func (s service) bootmember(ctx context.Context, admin string, boot entity.GangE
 	}
 	// Remove member from ongoing stream
 	s.livekit_config.RoomName = "room:" + admin
-	rerr := RemoveGangMemberFromStream(ctx, s.logger, s.livekit_config, boot.Member)
-	if rerr != nil {
-		// Error in RemoveGangMemberFromStream()
-		return rerr
-	}
+	go RemoveGangMemberFromStream(ctx, s.logger, s.livekit_config, boot.Member)
 	// Send notification to gang members
 	members, dberr := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
 	if dberr != nil {
@@ -460,16 +487,17 @@ func (s service) bootmember(ctx context.Context, admin string, boot entity.GangE
 		}
 		s.sseService.GetOrSetEvent(ctx).Message <- data
 	}()
-	for _, member := range members {
-		go func(member string) {
+	// Send notification to others in the group
+	go func() {
+		for _, member := range members {
 			data := entity.SSEData{
 				Data: boot.Member,
 				Type: "gangLeave",
 				To:   member,
 			}
 			s.sseService.GetOrSetEvent(ctx).Message <- data
-		}(member)
-	}
+		}
+	}()
 	return nil
 }
 
@@ -495,24 +523,24 @@ func (s service) delgang(ctx context.Context, admin string) error {
 	// Delete uploaded gang contents
 	go cleanup.DeleteContentFiles(oldGangData.ContentID, s.logger)
 
+	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
 	dberr = s.gangRepo.DelGang(ctx, s.logger, admin)
 	if dberr != nil {
 		// Error in DelGang()
 		return dberr
 	}
 	// Send notification to gang members
-	members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
-	for _, member := range members {
-		s.userRepo.DelStreamingToken(ctx, s.logger, member)
-		go func(member string) {
+	go func() {
+		for _, member := range members {
+			go s.userRepo.DelStreamingToken(ctx, s.logger, member)
 			data := entity.SSEData{
 				Data: nil,
 				Type: "gangDelete",
 				To:   member,
 			}
 			s.sseService.GetOrSetEvent(ctx).Message <- data
-		}(member)
-	}
+		}
+	}()
 	return nil
 }
 

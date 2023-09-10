@@ -56,9 +56,17 @@ func (s service) Listen(ctx context.Context) {
 	for {
 		select {
 		// Add new available client
-		case client := <-s.GetOrSetEvent(ctx).NewClients:
-			s.GetOrSetEvent(ctx).TotalClients[client.ID] = client.Channel
-			s.logger.WithCtx(ctx).Info().Msgf("Added client %s into Popcorn SSE event channel", client.ID)
+		case client, ok := <-s.GetOrSetEvent(ctx).NewClients:
+			if s.GetOrSetEvent(ctx).TotalClients[client.ID] != nil {
+				close(s.GetOrSetEvent(ctx).TotalClients[client.ID])
+				delete(s.GetOrSetEvent(ctx).TotalClients, client.ID)
+			}
+			if !ok {
+				s.logger.WithCtx(ctx).Error().Msgf("Error occured while setting new SSE channel for %s", client.ID)
+			} else {
+				s.GetOrSetEvent(ctx).TotalClients[client.ID] = client.Channel
+				s.logger.WithCtx(ctx).Info().Msgf("Added client %s into Popcorn SSE event channel", client.ID)
+			}
 
 		// Remove closed client
 		case client := <-s.GetOrSetEvent(ctx).ClosedClients:
@@ -76,11 +84,11 @@ func (s service) Listen(ctx context.Context) {
 func Cleanup(ctx context.Context) error {
 	// This quit signal will close open stream API connections
 	close(quit)
-	go func(event *entity.SSE) {
+	go func() {
 		time.Sleep(1 * time.Second)
 		close(event.Message)
 		close(event.ClosedClients)
 		close(event.NewClients)
-	}(event)
+	}()
 	return nil
 }

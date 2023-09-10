@@ -22,23 +22,23 @@ func SSEConnManagerMiddleware(service Service, logger log.Logger) gin.HandlerFun
 			return
 		}
 		// Initialize client
-		client := entity.SSEClient{
+		client := &entity.SSEClient{
 			ID:      user.Username,
 			Channel: make(chan entity.SSEData),
 		}
 
 		// Send new connection to event to store
-		service.GetOrSetEvent(gctx).NewClients <- client
+		service.GetOrSetEvent(gctx).NewClients <- *client
 
 		defer func() {
 			// Send closed connection to event server
 			if service.GetOrSetEvent(gctx).TotalClients[client.ID] != nil {
 				logger.WithCtx(gctx).Info().Msgf("Closing SSE connection : %s", client.ID)
-				service.GetOrSetEvent(gctx).ClosedClients <- client
+				service.GetOrSetEvent(gctx).ClosedClients <- *client
 			}
 		}()
 
-		gctx.Set("SSE", client)
+		gctx.Set("SSE", *client)
 		gctx.Next()
 	}
 }

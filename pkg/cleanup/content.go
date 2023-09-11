@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-var UPLOAD_PATH string = os.Getenv("UPLOAD_DIR")
+var UPLOAD_PATH string = os.Getenv("UPLOAD_PATH")
 
 // Helper method to delete file due to any issues found during or post upload
 func DeleteContentFiles(contentID string, logger log.Logger) {

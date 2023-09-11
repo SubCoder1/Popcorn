@@ -20,8 +20,12 @@ import (
 	lksdk "github.com/livekit/server-sdk-go"
 )
 
-var UPLOAD_PATH string = os.Getenv("UPLOAD_DIR")
-var APP_URL string = os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
+var (
+	ENV         string = os.Getenv("ENV")
+	UPLOAD_PATH string = os.Getenv("UPLOAD_PATH")
+	APP_URL     string = os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
+	STREAM_URL  string = os.Getenv("STREAM_URL")
+)
 
 type LivekitConfig struct {
 	// Host url of livekit cloud
@@ -194,6 +198,14 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		return ingerr
 	}
 
+	var media_pull_url string
+	if ENV != "PROD" {
+		// Server is being run locally, probably for testing
+		// Use demo STREAM_URL fetched from loaded config file
+		media_pull_url = STREAM_URL
+	} else {
+		media_pull_url = APP_URL + "/api/upload_content/" + config.Content
+	}
 	// Create a new ingress request
 	ingressRequest := &livekit.CreateIngressRequest{
 		InputType:           livekit.IngressInput_URL_INPUT,
@@ -201,7 +213,17 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		RoomName:            config.RoomName,
 		ParticipantIdentity: "gang_admin",
 		ParticipantName:     config.Identity,
-		Url:                 APP_URL + "/api/upload_content/" + config.Content,
+		Url:                 media_pull_url,
+		Video: &livekit.IngressVideoOptions{
+			EncodingOptions: &livekit.IngressVideoOptions_Preset{
+				Preset: livekit.IngressVideoEncodingPreset_H264_1080P_30FPS_3_LAYERS,
+			},
+		},
+		Audio: &livekit.IngressAudioOptions{
+			EncodingOptions: &livekit.IngressAudioOptions_Preset{
+				Preset: livekit.IngressAudioEncodingPreset_OPUS_MONO_64KBS,
+			},
+		},
 	}
 	info, ingerr := ingressClient.CreateIngress(ctx, ingressRequest)
 	if ingerr != nil {
@@ -212,6 +234,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 
 	ticker := time.NewTicker(5 * time.Second)
 
+	// Start a goroutine to handle graceful update of gang data after stream ends via livekit (not client side stop action)
 	go func() {
 		for range ticker.C {
 			ingList, err := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
@@ -221,7 +244,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 				return
 			}
 			for _, ing := range ingList.Items {
-				if ing.State.Status == livekit.IngressState_ENDPOINT_INACTIVE {
+				if ing.State.Status != livekit.IngressState_ENDPOINT_PUBLISHING {
 					// Stream finished
 					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
 					ticker.Stop()
@@ -230,8 +253,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 			}
 		}
 	}()
-
-	// Signal to close running ffmpeg process on server shutdown
+	// Start another goroutine to updates because of handle server shutdown
 	go func() {
 		s := make(chan os.Signal, 1)
 		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)

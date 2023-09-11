@@ -13,8 +13,7 @@ Popcorn lets you create a virtual room where everyone can join, chat and watch m
 This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
 
 ## Architecture
-
-<img width="1840" alt="Popcorn architecture (2)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/5e39d781-04ed-4351-838b-0f044e660358">
+<img width="1920" alt="Popcorn architecture (1)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/48b0e1ea-eeb8-4dc9-951a-c11a94720a08">
 
 ## Requirements (Without Docker)
 

@@ -214,12 +214,18 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 
 	go func() {
 		for range ticker.C {
-			ingList, _ := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
+			ingList, err := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
+			if err != nil {
+				updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+				ticker.Stop()
+				return
+			}
 			for _, ing := range ingList.Items {
 				if ing.State.Status == livekit.IngressState_ENDPOINT_INACTIVE {
 					// Stream finished
 					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
 					ticker.Stop()
+					return
 				}
 			}
 		}

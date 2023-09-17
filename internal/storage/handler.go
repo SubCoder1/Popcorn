@@ -78,6 +78,17 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 			return nil
 		},
 		PreFinishResponseCallback: func(hook tusd.HookEvent) error {
+			user := hook.HTTPRequest.Header.Get("User")
+			gangKey := "gang:" + user
+			// Check if content URL is there already for this gang
+			gang, dberr := gangRepo.GetGang(ctx, logger, gangKey, user, false)
+			if dberr != nil {
+				// Error occured in GetGang()
+				return tusd.NewHTTPError(dberr, 500)
+			} else if gang.ContentURL != "" {
+				// cannot contain content file & URL at the same time
+				return tusd.NewHTTPError(errors.New("cannot contain content file & URL at the same time"), 400)
+			}
 			// Validate uploaded file and add filename and ID into gang data upon success
 			filepath := UPLOAD_PATH + hook.Upload.ID
 			file, oserr := os.Open(filepath)
@@ -92,16 +103,14 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 				return tusd.ErrInvalidContentType
 			}
 
-			user := hook.HTTPRequest.Header.Get("User")
-			dberr := gangRepo.UpdateGangContentData(ctx, logger, user, hook.Upload.MetaData["filename"], hook.Upload.ID, false)
+			dberr = gangRepo.UpdateGangContentData(ctx, logger, user, hook.Upload.MetaData["filename"], hook.Upload.ID, "", false)
 			if dberr != nil {
 				// Error occured in UpdateGangContentData()
-				return tusd.NewHTTPError(errors.New("internal server error"), 500)
+				return tusd.NewHTTPError(dberr, 500)
 			}
 
 			// The uploaded file should be deleted if not streamed under 10mins as storage is limited
 			time.AfterFunc(10*time.Minute, func() {
-				gangKey := "gang:" + user
 				gang, _ := gangRepo.GetGang(ctx, logger, gangKey, user, false)
 
 				if len(gang.Name) != 0 && !gang.Streaming {
@@ -109,7 +118,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 					// Delete gang content files
 					cleanup.DeleteContentFiles(gang.ContentID, logger)
 					// Erase gang content data from DB
-					gangRepo.UpdateGangContentData(ctx, logger, user, "", "", false)
+					gangRepo.UpdateGangContentData(ctx, logger, user, "", "", "", false)
 					// Notify the members that stream has stopped
 					members, _ := gangRepo.GetGangMembers(ctx, logger, user)
 					for _, member := range members {

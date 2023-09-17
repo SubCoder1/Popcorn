@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go"
@@ -24,7 +25,6 @@ var (
 	ENV         string = os.Getenv("ENV")
 	UPLOAD_PATH string = os.Getenv("UPLOAD_PATH")
 	APP_URL     string = os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
-	STREAM_URL  string = os.Getenv("STREAM_URL")
 )
 
 type LivekitConfig struct {
@@ -199,10 +199,9 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 	}
 
 	var media_pull_url string
-	if ENV != "PROD" {
-		// Server is being run locally, probably for testing
-		// Use demo STREAM_URL fetched from loaded config file
-		media_pull_url = STREAM_URL
+	if govalidator.IsURL(config.Content) {
+		// Check whether content is an URL or a filename
+		media_pull_url = config.Content
 	} else {
 		media_pull_url = APP_URL + "/api/upload_content/" + config.Content
 	}
@@ -232,7 +231,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		return errors.InternalServerError("")
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 
 	// Start a goroutine to handle graceful update of gang data after stream ends via livekit (not client side stop action)
 	go func() {
@@ -296,10 +295,12 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 	logger.WithCtx(ctx).Info().Msgf("Stream ended for content %s | %s", config.Content, config.RoomName)
 	// Delete ingress
 	deleteIngress(ctx, logger, ingressClient, config.RoomName)
-	// Delete gang content files
-	cleanup.DeleteContentFiles(config.Content, logger)
+	if !govalidator.IsURL(config.Content) {
+		// Delete gang content files
+		cleanup.DeleteContentFiles(config.Content, logger)
+	}
 	// Erase gang content data
-	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", false)
+	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", "", false)
 	// Notify the members that stream has stopped
 	members, _ := gangRepo.GetGangMembers(ctx, logger, config.Identity)
 	for _, member := range members {

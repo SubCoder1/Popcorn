@@ -21,6 +21,8 @@ type Gang struct {
 	ContentName string `json:"-" redis:"gang_content_name" valid:"-"`
 	// Gang Content file ID.
 	ContentID string `json:"-" redis:"gang_content_ID" valid:"-"`
+	// Gang Content link.
+	ContentURL string `json:"gang_content_url" redis:"gang_content_url" valid:"url,optional"`
 	// Gang Stream status
 	Streaming bool `json:"-" redis:"gang_streaming" valid:"-"`
 }
@@ -36,6 +38,7 @@ type GangResponse struct {
 	Created     int64  `json:"gang_created,omitempty" redis:"gang_created"`
 	ContentName string `json:"gang_content_name" redis:"gang_content_name"`
 	ContentID   string `json:"gang_content_ID" redis:"gang_content_ID"`
+	ContentURL  string `json:"gang_content_url" redis:"gang_content_url"`
 	Streaming   bool   `json:"gang_streaming" redis:"gang_streaming"`
 }
 

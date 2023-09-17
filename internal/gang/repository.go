@@ -32,7 +32,7 @@ type Repository interface {
 	GetGangMembers(ctx context.Context, logger log.Logger, username string) ([]string, error)
 	// GetGangInvites returns a list of invites received by user in Popcorn.
 	GetGangInvites(ctx context.Context, logger log.Logger, username string) ([]entity.GangInvite, error)
-	// DelGangInvite deletes rejected or expired gang invites
+	// DelGangInvite deletes rejected or expired gang invites.
 	DelGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// JoinGang adds user to a gang.
 	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error
@@ -45,7 +45,7 @@ type Repository interface {
 	// AcceptGangInvite accepts the invite request and joins the requested gang.
 	AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// UpdateGangContentData updates content filename and ID from gang data.
-	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID string, streaming bool) error
+	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error
 }
 
 // repository struct of gang Repository.
@@ -106,6 +106,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
 				}
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
+				client.HSet(ctx, gangKey, "gang_content_url", gang.ContentURL)
 				if !update {
 					// Only set during creating gang, some of these can be changed by server
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
@@ -114,6 +115,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_streaming", false)
 					client.HSet(ctx, gangKey, "gang_content_name", "")
 					client.HSet(ctx, gangKey, "gang_content_ID", "")
+					client.HSet(ctx, gangKey, "gang_content_url", "")
 				} else if len(gang.ContentID) != 0 && len(gang.ContentName) != 0 {
 					// These values are only updated through server
 					client.HSet(ctx, gangKey, "gang_content_name", gang.ContentName)
@@ -142,7 +144,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 	}
 	if !update {
 		// Set gang:index -> gang:<gang.Admin>:<gang.Name> as index for quicker search
-		gangIndex := fmt.Sprintf("gang:%s:%s", gang.Admin, gang.Name)
+		gangIndex := fmt.Sprintf("gang:%s:%s", gang.Admin, strings.ToLower(gang.Name))
 		_, dberr = r.db.Client().SAdd(ctx, "gang:index", gangIndex).Result()
 		if dberr != nil {
 			// Issues in SAdd()
@@ -201,7 +203,7 @@ func (r repository) DelGang(ctx context.Context, logger log.Logger, admin string
 		return dberr
 	}
 	// Delete gang index from DB
-	r.delGangIndex(ctx, logger, fmt.Sprintf("gang:%s:%s", admin, gangData.Name))
+	r.delGangIndex(ctx, logger, fmt.Sprintf("gang:%s:%s", admin, strings.ToLower(gangData.Name)))
 	return nil
 }
 
@@ -271,7 +273,8 @@ func (r repository) GetGangPassKey(ctx context.Context, logger log.Logger, gangK
 		return "", dberr
 	} else if !available {
 		// Delete index as this request was made through search or invite
-		r.delGangIndex(ctx, logger, gangKey.Key+":"+gangKey.Name)
+		idx := gangKey.Key + ":" + strings.ToLower(gangKey.Name)
+		r.delGangIndex(ctx, logger, idx)
 		return "", errors.BadRequest("Gang doesn't exist")
 	}
 	// Fetch Gang PassKey hash
@@ -343,7 +346,8 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 		return dberr
 	} else if !available {
 		// Delete index as this request was made through search or invite
-		r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
+		idx := boot.Key + ":" + strings.ToLower(boot.Name)
+		r.delGangIndex(ctx, logger, idx)
 		return errors.BadRequest("Gang doesn't exist")
 	}
 
@@ -387,7 +391,8 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 		return errors.InternalServerError("")
 	} else if dberr == redis.Nil || gangMemberKey == "" {
 		// GangMembers doesn't exist
-		go r.delGangIndex(ctx, logger, boot.Key+":"+boot.Name)
+		idx := boot.Key + ":" + strings.ToLower(boot.Name)
+		go r.delGangIndex(ctx, logger, idx)
 		return nil
 	}
 	dberr = r.DelGangMember(ctx, logger, gangMemberKey, boot.Member)
@@ -402,9 +407,10 @@ func (r repository) LeaveGang(ctx context.Context, logger log.Logger, boot entit
 func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity.GangJoin, username string) error {
 	// Check if gang can take a member in by checking if current gang members count + 1 < members_limit
 	gangLimitStr, dberr := r.db.Client().HGet(ctx, join.Key, "gang_member_limit").Result()
+	idx := join.Key + ":" + strings.ToLower(join.Name)
 	if dberr != nil {
 		if dberr == redis.Nil || len(gangLimitStr) == 0 {
-			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			go r.delGangIndex(ctx, logger, idx)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error during interacting with DB
@@ -421,7 +427,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 	gangMemberKey, dberr := r.db.Client().HGet(ctx, join.Key, "gang_members_key").Result()
 	if dberr != nil {
 		if dberr == redis.Nil || len(gangMemberKey) == 0 {
-			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			go r.delGangIndex(ctx, logger, idx)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error during interacting with DB
@@ -431,7 +437,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 	currMembersCount, dberr := r.db.Client().SCard(ctx, gangMemberKey).Result()
 	if dberr != nil {
 		if dberr == redis.Nil || currMembersCount == 0 {
-			r.delGangIndex(ctx, logger, join.Key+":"+join.Name)
+			go r.delGangIndex(ctx, logger, idx)
 			return errors.BadRequest("Gang doesn't exist")
 		}
 		// Error interacting with DB
@@ -478,7 +484,7 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity.GangSearch, username string) ([]entity.GangResponse, uint64, error) {
 	searchResult := []entity.GangResponse{}
 	// try searching gang index gang:*:query:index, assuming query as gang name
-	searchBy := fmt.Sprintf("gang:*:%s*", gs.Name)
+	searchBy := fmt.Sprintf("gang:*:%s*", strings.ToLower(gs.Name))
 	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "gang:index", uint64(gs.Cursor), searchBy, 10).Result()
 
 	if dberr != nil && dberr != redis.Nil {
@@ -499,7 +505,8 @@ func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity
 		} else if gang.Admin == "" {
 			// Empty gang, must be expired
 			// Remove from index and continue
-			r.delGangIndex(ctx, logger, gangKey+":"+gangName)
+			idx := gangKey + ":" + strings.ToLower(gangName)
+			r.delGangIndex(ctx, logger, idx)
 		}
 		searchResult = append(searchResult, gang)
 	}
@@ -589,7 +596,7 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 		return dberr
 	} else if !gangExists {
 		// Gang doesn't exist, invalid invite
-		gangIndex := fmt.Sprintf("gang:%s:%s", invite.Admin, invite.Name)
+		gangIndex := fmt.Sprintf("gang:%s:%s", invite.Admin, strings.ToLower(invite.Name))
 		go r.delGangIndex(ctx, logger, gangIndex)
 		return errors.BadRequest("Expired or Invalid Gang Invite")
 	}
@@ -602,8 +609,8 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 	return r.JoinGang(ctx, logger, *gangJoin, invite.For)
 }
 
-// Deletes gang content ID and filename from gang data.
-func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID string, streaming bool) error {
+// Updates gang content ID and filename from gang data.
+func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error {
 	// Checking if an gang with admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+admin, "")
 	if dberr != nil {
@@ -619,6 +626,7 @@ func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger
 			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
 				client.HSet(ctx, gangKey, "gang_content_name", cname)
 				client.HSet(ctx, gangKey, "gang_content_ID", cID)
+				client.HSet(ctx, gangKey, "gang_content_url", cURL)
 				client.HSet(ctx, gangKey, "gang_streaming", streaming)
 				return nil
 			})

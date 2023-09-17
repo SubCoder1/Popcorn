@@ -139,13 +139,18 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 
 func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 	// Check if user already has an unexpired gang created in Popcorn
-	available, dberr := s.gangRepo.HasGang(ctx, s.logger, "gang:"+gang.Admin, "")
+	gangKey := "gang:" + gang.Admin
+	existingGangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, gang.Admin, false)
 	if dberr != nil {
 		// Error occured in HasGang()
 		return dberr
-	} else if !available {
+	} else if existingGangData.Admin == "" {
 		// User doesn't have their own gang to update
 		valerr := errors.New("gang:User haven't created a gang")
+		return errors.GenerateValidationErrorResponse([]error{valerr})
+	} else if existingGangData.ContentID != "" && gang.ContentURL != "" {
+		// Either file or link, cannot contain both
+		valerr := errors.New("gang:Can only have file or link as a content")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
@@ -630,7 +635,7 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 		return dberr
 	}
 	// set gang.Streaming flag to true
-	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, gang.ContentName, gang.ContentID, true)
+	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, gang.ContentName, gang.ContentID, gang.ContentURL, true)
 	if dberr != nil {
 		// Error occured in UpdateGangContentData()
 		return dberr
@@ -647,7 +652,11 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 		}(member)
 	}
 	// Publish encoded content files into livekit cloud
-	s.livekit_config.Content = gang.ContentID
+	if gang.ContentURL != "" {
+		s.livekit_config.Content = gang.ContentURL
+	} else {
+		s.livekit_config.Content = gang.ContentID
+	}
 	s.livekit_config.RoomName = "room:" + admin
 	s.livekit_config.Identity = admin
 	perr := ingressStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)

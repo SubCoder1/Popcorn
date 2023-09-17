@@ -32,7 +32,7 @@ type Repository interface {
 	GetGangMembers(ctx context.Context, logger log.Logger, username string) ([]string, error)
 	// GetGangInvites returns a list of invites received by user in Popcorn.
 	GetGangInvites(ctx context.Context, logger log.Logger, username string) ([]entity.GangInvite, error)
-	// DelGangInvite deletes rejected or expired gang invites
+	// DelGangInvite deletes rejected or expired gang invites.
 	DelGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// JoinGang adds user to a gang.
 	JoinGang(ctx context.Context, logger log.Logger, gangKey entity.GangJoin, username string) error
@@ -45,7 +45,7 @@ type Repository interface {
 	// AcceptGangInvite accepts the invite request and joins the requested gang.
 	AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// UpdateGangContentData updates content filename and ID from gang data.
-	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID string, streaming bool) error
+	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error
 }
 
 // repository struct of gang Repository.
@@ -106,6 +106,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_pass_key", gang.PassKey)
 				}
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
+				client.HSet(ctx, gangKey, "gang_content_url", gang.ContentURL)
 				if !update {
 					// Only set during creating gang, some of these can be changed by server
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
@@ -114,6 +115,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_streaming", false)
 					client.HSet(ctx, gangKey, "gang_content_name", "")
 					client.HSet(ctx, gangKey, "gang_content_ID", "")
+					client.HSet(ctx, gangKey, "gang_content_url", "")
 				} else if len(gang.ContentID) != 0 && len(gang.ContentName) != 0 {
 					// These values are only updated through server
 					client.HSet(ctx, gangKey, "gang_content_name", gang.ContentName)
@@ -607,8 +609,8 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 	return r.JoinGang(ctx, logger, *gangJoin, invite.For)
 }
 
-// Deletes gang content ID and filename from gang data.
-func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID string, streaming bool) error {
+// Updates gang content ID and filename from gang data.
+func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error {
 	// Checking if an gang with admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+admin, "")
 	if dberr != nil {
@@ -624,6 +626,7 @@ func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger
 			_, dberr := r.db.Client().TxPipelined(ctx, func(client redis.Pipeliner) error {
 				client.HSet(ctx, gangKey, "gang_content_name", cname)
 				client.HSet(ctx, gangKey, "gang_content_ID", cID)
+				client.HSet(ctx, gangKey, "gang_content_url", cURL)
 				client.HSet(ctx, gangKey, "gang_streaming", streaming)
 				return nil
 			})

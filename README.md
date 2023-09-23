@@ -69,11 +69,14 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
    make load-db
 
    make local
+
+   # Server is running on port 8080
    ```
 
-4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
-
+4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
+5. Inside Popcorn-web repository, Set ```VUE_APP_SERVER_URL = http://localhost:8080``` (line-1).
+6. Run the frontend using the command below:
    ```console
-   npm run serve -- --port 8081
+      npm run serve -- --port 8081
    ```
-5. Finally, Open http://localhost:8081 and try it out!   
+8. Finally, Open http://localhost:8081 and try it out!   

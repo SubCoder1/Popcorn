@@ -8,9 +8,9 @@
 Popcorn is live! at https://popcorntv.click 
 
 
-Lets assume you're very far away from your friends & family, but you'll want to watch a movie together. 
-Popcorn lets you create a virtual room where everyone can join, chat and watch movie together! 
-This repository presents the server side of Popcorn, while the frontend is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
+Let's say you're very far from your friends and family, but you want to watch a movie together. With Popcorn, you can create a virtual space
+where everyone can join, hangout and watch anything with each other! This repository features the server side of Popcorn, while the 
+front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
 
 ## Architecture
 <img width="1920" alt="Popcorn architecture (1)" src="https://github.com/SubCoder1/Popcorn/assets/40127554/48b0e1ea-eeb8-4dc9-951a-c11a94720a08">

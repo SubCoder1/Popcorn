@@ -77,7 +77,7 @@ func main() {
 	}()
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
-	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Second, []cleanup.Operation{
+	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Minute, []cleanup.Operation{
 		func(ctx context.Context) error {
 			sse.Cleanup(ctx)
 			return srv.Shutdown(ctx)

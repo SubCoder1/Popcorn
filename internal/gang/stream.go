@@ -183,13 +183,13 @@ func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config L
 }
 
 // Helper to create and return an IngressClient.
-func createIngressClient(ctx context.Context, logger log.Logger, config LivekitConfig) *lksdk.IngressClient {
+func createIngressClient(ctx context.Context, config LivekitConfig) *lksdk.IngressClient {
 	return lksdk.NewIngressClient(config.Host, config.ApiKey, config.ApiSecret)
 }
 
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
 func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository, config LivekitConfig) error {
-	ingressClient := createIngressClient(ctx, logger, config)
+	ingressClient := createIngressClient(ctx, config)
 
 	// Delete existing ingress with same roomname
 	ingerr := deleteIngress(ctx, logger, ingressClient, config.RoomName)
@@ -313,4 +313,24 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 			sseService.GetOrSetEvent(ctx).Message <- data
 		}(member)
 	}
+}
+
+// Helper to clean-up open ingresses on server shutdown
+func DeleteAllOpenIngress(ctx context.Context, logger log.Logger, config LivekitConfig) error {
+	client := createIngressClient(ctx, config)
+	ingressList, ingerr := client.ListIngress(ctx, &livekit.ListIngressRequest{})
+	if ingerr != nil {
+		// Error occured in ListIngress()
+		logger.WithCtx(ctx).Error().Err(ingerr).Msg("Error occured during listing ingress via livekit.ListIngress()")
+		return ingerr
+	}
+	for _, ing := range ingressList.Items {
+		i, ingerr := client.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: ing.IngressId})
+		if ingerr != nil {
+			logger.WithCtx(ctx).Error().Err(ingerr).Msgf("Error occured while deleting ingress - %s via livekit.DeleteIngress()", ing)
+			return ingerr
+		}
+		logger.WithCtx(ctx).Info().Msgf("Deleted ingress - %s : %s", i.IngressId, i.Name)
+	}
+	return nil
 }

@@ -316,23 +316,3 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 		}(member)
 	}
 }
-
-// Helper to clean-up open ingresses on server shutdown
-func DeleteAllOpenIngress(ctx context.Context, logger log.Logger, config LivekitConfig) error {
-	client := createIngressClient(ctx, config)
-	ingressList, ingerr := client.ListIngress(ctx, &livekit.ListIngressRequest{})
-	if ingerr != nil {
-		// Error occured in ListIngress()
-		logger.WithCtx(ctx).Error().Err(ingerr).Msg("Error occured during listing ingress via livekit.ListIngress()")
-		return ingerr
-	}
-	for _, ing := range ingressList.Items {
-		i, ingerr := client.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: ing.IngressId})
-		if ingerr != nil {
-			logger.WithCtx(ctx).Error().Err(ingerr).Msgf("Error occured while deleting ingress - %s via livekit.DeleteIngress()", ing)
-			return ingerr
-		}
-		logger.WithCtx(ctx).Info().Msgf("Deleted ingress - %s : %s", i.IngressId, i.Name)
-	}
-	return nil
-}

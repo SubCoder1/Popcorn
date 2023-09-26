@@ -83,10 +83,6 @@ func main() {
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
 	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Minute, []cleanup.Operation{
 		func(ctx context.Context) error {
-			// Stop all open stream ingresses
-			return gang.DeleteAllOpenIngress(ctx, logger, LIVEKIT_CONFIG)
-		},
-		func(ctx context.Context) error {
 			// Disconnect SSE connections & coressponding channels, then shutdown gin server
 			sse.Cleanup(ctx)
 			return srv.Shutdown(ctx)

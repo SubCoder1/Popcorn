@@ -688,7 +688,7 @@ func (s service) stopcontent(ctx context.Context, admin string) error {
 		stream <- true
 	} else {
 		s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
-		ingressClient := createIngressClient(ctx, s.logger, s.livekit_config)
+		ingressClient := createIngressClient(ctx, s.livekit_config)
 		updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
 	}
 	return nil

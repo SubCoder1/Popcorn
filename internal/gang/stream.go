@@ -280,7 +280,7 @@ func deleteIngress(ctx context.Context, logger log.Logger, client *lksdk.Ingress
 		logger.WithCtx(ctx).Error().Err(ingerr).Msg("Error occured during listing ingress via livekit.ListIngress()")
 		return errors.InternalServerError("")
 	}
-	for _, ing := range ingressList.Items {
+	for _, ing := range ingressList.GetItems() {
 		_, ingerr = client.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: ing.IngressId})
 		if ingerr != nil {
 			logger.WithCtx(ctx).Error().Err(ingerr).Msgf("Error occured while deleting ingress - %s via livekit.DeleteIngress()", ing)

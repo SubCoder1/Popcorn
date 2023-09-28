@@ -25,10 +25,14 @@ import (
 )
 
 var (
-	// Indicates the current version of Popcorn.
-	version string = os.Getenv("VERSION")
-	// Loads the environment set for Popcorn to run on [DEV, PROD].
-	environment string = os.Getenv("ENV")
+	VERSION     = os.Getenv("VERSION") // Indicates the current version of Popcorn.
+	ENVIRONMENT = os.Getenv("ENV")     // Loads the environment set for Popcorn to run on [DEV, PROD].
+	// Livekit credentials
+	LIVEKIT_CONFIG = gang.LivekitConfig{
+		Host:      os.Getenv("LIVEKIT_HOST"),
+		ApiKey:    os.Getenv("LIVEKIT_API_KEY"),
+		ApiSecret: os.Getenv("LIVEKIT_SECRET_KEY"),
+	}
 )
 
 func main() {
@@ -36,14 +40,14 @@ func main() {
 	ctx := context.Background()
 
 	// Initializing the logger
-	logger := log.New(version)
+	logger := log.New(VERSION)
 
-	if environment == "" {
+	if ENVIRONMENT == "" {
 		// if environment is empty, it means the env file wasn't correctly loaded into the platform. Exit immediately!
 		logger.Fatal().Err(errors.New("os couldn't load Environment variables.")).Msg("")
 	}
 	logger.Info().Msg("Welcome to Popcorn")
-	logger.Info().Msgf("Popcorn Environment: %s", environment)
+	logger.Info().Msgf("Popcorn Environment: %s", ENVIRONMENT)
 
 	// Opening a Redis DB connection
 	// This object will be passed around internally for accessing the DB
@@ -77,12 +81,14 @@ func main() {
 	}()
 
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
-	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Second, []cleanup.Operation{
+	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Minute, []cleanup.Operation{
 		func(ctx context.Context) error {
+			// Disconnect SSE connections & coressponding channels, then shutdown gin server
 			sse.Cleanup(ctx)
 			return srv.Shutdown(ctx)
 		},
 		func(ctx context.Context) error {
+			// Close Redis DB Connection
 			return dbConnWrp.CloseDbConnection(ctx)
 		},
 	})
@@ -96,10 +102,6 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	refSecret := os.Getenv("REFRESH_SECRET")
 
 	addr := os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
-
-	stream_host := os.Getenv("LIVEKIT_HOST")
-	stream_api_key := os.Getenv("LIVEKIT_API_KEY")
-	stream_api_secret := os.Getenv("LIVEKIT_SECRET_KEY")
 
 	// Initializing the gin server
 	ginMode := os.Getenv("GIN_MODE")
@@ -121,11 +123,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
 	sseService := sse.NewService(logger)
-	gangService := gang.NewService(gang.LivekitConfig{
-		Host:      stream_host,
-		ApiKey:    stream_api_key,
-		ApiSecret: stream_api_secret,
-	}, gangRepo, userRepo, sseService, logger)
+	gangService := gang.NewService(LIVEKIT_CONFIG, gangRepo, userRepo, sseService, logger)
 
 	// Launch SSE Listener in a seperate goroutine
 	sseService.GetOrSetEvent(ctx)

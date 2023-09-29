@@ -30,11 +30,11 @@ type UserSearch struct {
 // Randomly sets user's profile pic during login/register
 func (u User) SelectProfilePic() string {
 	profiles := []string{
+		"alien.png",
+		"batman.png",
 		"cyclops.png",
-		"dead-cat.png",
 		"dead.png",
 		"devil.png",
-		"doll.png",
 		"dracula.png",
 		"frankenstein.png",
 		"ghost.png",
@@ -46,10 +46,11 @@ func (u User) SelectProfilePic() string {
 		"orc.png",
 		"pirate.png",
 		"prisoner.png",
+		"robber.png",
 		"thief.png",
 		"witch.png",
 		"zombie.png",
 	}
-	rand.Seed(time.Now().Unix()) // initialize global pseudo random generator
-	return profiles[rand.Intn(len(profiles))]
+	r := rand.New(rand.NewSource(time.Now().Unix())) // initialize global pseudo random generator
+	return profiles[r.Intn(len(profiles))]
 }

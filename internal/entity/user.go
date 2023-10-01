@@ -50,6 +50,6 @@ func (u User) SelectProfilePic() string {
 		"witch.png",
 		"zombie.png",
 	}
-	rand.Seed(time.Now().Unix()) // initialize global pseudo random generator
-	return profiles[rand.Intn(len(profiles))]
+	r := rand.New(rand.NewSource(time.Now().Unix())) // initialize global pseudo random generator
+	return profiles[r.Intn(len(profiles))]
 }

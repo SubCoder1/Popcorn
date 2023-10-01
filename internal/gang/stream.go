@@ -3,9 +3,7 @@
 package gang
 
 import (
-	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
-	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
@@ -90,7 +88,7 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 		RoomList:       no,
 		RoomRecord:     no,
 		Recorder:       no,
-		CanPublish:     &no,
+		CanPublish:     &yes,
 		CanSubscribe:   &yes,
 		CanPublishData: &yes,
 		IngressAdmin:   no,
@@ -188,7 +186,7 @@ func createIngressClient(ctx context.Context, config LivekitConfig) *lksdk.Ingre
 }
 
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
-func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository, config LivekitConfig) error {
+func ingressStreamContent(ctx context.Context, logger log.Logger, gangRepo Repository, config LivekitConfig) error {
 	ingressClient := createIngressClient(ctx, config)
 
 	// Delete existing ingress with same roomname
@@ -238,7 +236,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		for range ticker.C {
 			ingList, err := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
 			if err != nil {
-				updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+				updateAfterStreamEnds(ctx, logger, gangRepo, ingressClient, config)
 				ticker.Stop()
 				return
 			}
@@ -247,7 +245,7 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 				// 1 is ENDPOINT_BUFFERING and 2 is ENDPOINT_PUBLISHING
 				if ing_status != 1 && ing_status != 2 {
 					// Stream finished
-					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+					updateAfterStreamEnds(ctx, logger, gangRepo, ingressClient, config)
 					ticker.Stop()
 					return
 				}
@@ -260,13 +258,13 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 		<-s
 		ticker.Stop()
-		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		updateAfterStreamEnds(ctx, logger, gangRepo, ingressClient, config)
 	}()
 	// Another goroutine to handle user triggered force-close of this stream
 	go func() {
 		streamRecords[config.RoomName] = make(close_stream_signal, 1)
 		<-streamRecords[config.RoomName]
-		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		updateAfterStreamEnds(ctx, logger, gangRepo, ingressClient, config)
 		ticker.Stop()
 		close(streamRecords[config.RoomName])
 		delete(streamRecords, config.RoomName)
@@ -294,7 +292,7 @@ func deleteIngress(ctx context.Context, logger log.Logger, client *lksdk.Ingress
 }
 
 // Helper to update content data after stream process finishes.
-func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository,
+func updateAfterStreamEnds(ctx context.Context, logger log.Logger, gangRepo Repository,
 	ingressClient *lksdk.IngressClient, config LivekitConfig) {
 	logger.WithCtx(ctx).Info().Msgf("Stream ended for content %s | %s", config.Content, config.RoomName)
 	// Delete ingress
@@ -305,16 +303,4 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 	}
 	// Erase gang content data
 	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", "", false)
-	// Notify the members that stream has stopped
-	members, _ := gangRepo.GetGangMembers(ctx, logger, config.Identity)
-	for _, member := range members {
-		go func(member string) {
-			data := entity.SSEData{
-				Data: nil,
-				Type: "gangEndContent",
-				To:   member,
-			}
-			sseService.GetOrSetEvent(ctx).Message <- data
-		}(member)
-	}
 }

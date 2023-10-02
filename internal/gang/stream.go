@@ -90,7 +90,7 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 		RoomList:       no,
 		RoomRecord:     no,
 		Recorder:       no,
-		CanPublish:     &no,
+		CanPublish:     &yes,
 		CanSubscribe:   &yes,
 		CanPublishData: &yes,
 		IngressAdmin:   no,
@@ -188,7 +188,8 @@ func createIngressClient(ctx context.Context, config LivekitConfig) *lksdk.Ingre
 }
 
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
-func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository, config LivekitConfig) error {
+func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service,
+	gangRepo Repository, config LivekitConfig) error {
 	ingressClient := createIngressClient(ctx, config)
 
 	// Delete existing ingress with same roomname
@@ -243,7 +244,9 @@ func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse
 				return
 			}
 			for _, ing := range ingList.Items {
-				if ing.State.Status != livekit.IngressState_ENDPOINT_PUBLISHING {
+				ing_status := livekit.IngressState_Status(ing.State.Status.Number())
+				// 1 is ENDPOINT_BUFFERING and 2 is ENDPOINT_PUBLISHING
+				if ing_status != 1 && ing_status != 2 {
 					// Stream finished
 					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
 					ticker.Stop()

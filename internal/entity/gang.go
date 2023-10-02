@@ -83,5 +83,5 @@ type GangExit struct {
 
 // Used to bind and validate incoming gang conversations in Popcorn.
 type GangMessage struct {
-	Message string `json:"message" valid:"required,type(string),printableascii"`
+	Message string `json:"message" valid:"required,type(string)"`
 }

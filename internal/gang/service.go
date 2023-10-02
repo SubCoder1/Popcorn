@@ -659,7 +659,7 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 	}
 	s.livekit_config.RoomName = "room:" + admin
 	s.livekit_config.Identity = admin
-	perr := ingressStreamContent(ctx, s.logger, s.gangRepo, s.livekit_config)
+	perr := ingressStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)
 	if perr != nil {
 		// Error occured in publishStreamContent()
 		return perr
@@ -689,7 +689,7 @@ func (s service) stopcontent(ctx context.Context, admin string) error {
 	} else {
 		s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
 		ingressClient := createIngressClient(ctx, s.livekit_config)
-		updateAfterStreamEnds(ctx, s.logger, s.gangRepo, ingressClient, s.livekit_config)
+		updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
 	}
 	return nil
 }

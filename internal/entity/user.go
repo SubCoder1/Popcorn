@@ -35,6 +35,7 @@ func (u User) SelectProfilePic() string {
 		"cyclops.png",
 		"dead.png",
 		"devil.png",
+		"doll.png",
 		"dracula.png",
 		"frankenstein.png",
 		"ghost.png",

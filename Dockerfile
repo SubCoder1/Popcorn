@@ -13,9 +13,6 @@ RUN go build -o main ./cmd/server/.
 # Production stage
 FROM alpine:3.18.3 as production-stage
 
-# Install ffmpeg
-RUN apk update && apk add --no-cache ffmpeg
-
 # Install cert package
 RUN apk --no-cache add ca-certificates
 

@@ -3,6 +3,8 @@
 package gang
 
 import (
+	"Popcorn/internal/entity"
+	"Popcorn/internal/errors"
 	"Popcorn/pkg/log"
 	"context"
 	"regexp"
@@ -19,4 +21,22 @@ func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
 	})
 
 	logger.WithCtx(ctx).Info().Msg("Successfully registered gang related custom validations.")
+}
+
+func canUpdateGangContentRelatedData(existingGangData entity.GangResponse, gang *entity.Gang) bool {
+	return !existingGangData.Streaming && !((existingGangData.ContentID != "" && gang.ContentURL != "") ||
+		(existingGangData.ContentID != "" && gang.ContentScreenShare) ||
+		(existingGangData.ContentURL != "" && gang.ContentScreenShare) ||
+		(existingGangData.ContentURL != "" && gang.ContentID != "") ||
+		(existingGangData.ContentScreenShare && gang.ContentID != "") ||
+		(existingGangData.ContentScreenShare && gang.ContentURL != ""))
+}
+
+func validateGangData(ctx context.Context, gang interface{}) error {
+	_, valerr := govalidator.ValidateStruct(gang)
+	if valerr != nil {
+		valerr := valerr.(govalidator.Errors).Errors()
+		return errors.GenerateValidationErrorResponse(valerr)
+	}
+	return nil
 }

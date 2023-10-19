@@ -42,24 +42,10 @@ func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.H
 		} else if gang.Admin == "" {
 			gctx.AbortWithStatus(http.StatusUnauthorized)
 			return
-		} else if gang.Streaming {
-			// Cannot do anything related to content while its being streamed
+		} else if gang.Streaming || gang.ContentURL != "" || gang.ContentScreenShare {
+			// Cannot upload files while other streaming options are filled up
 			gctx.AbortWithStatus(http.StatusBadRequest)
 			return
-		} else if gang.ContentURL != "" {
-			// Cannot upload content file while content URL is added already
-			dberr = gangRepo.UpdateGangContentData(gctx, logger, user.Username, "", "", "", false)
-			if dberr != nil {
-				// Error occured in UpdateGangContentData()
-				err, ok := dberr.(errors.ErrorResponse)
-				if !ok {
-					// Type assertion error
-					gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
-					return
-				}
-				gctx.AbortWithStatusJSON(err.Status, err)
-				return
-			}
 		}
 		// Check if enough disk space is available to accept another content
 		// Convert MAX_UPLOAD_SIZE to int64
@@ -80,7 +66,7 @@ func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.H
 		if gctx.Request.Method == "DELETE" {
 			// Erase content ID and filename from DB
 			defer func() {
-				gangRepo.UpdateGangContentData(gctx, logger, user.Username, "", "", "", false)
+				gangRepo.UpdateGangContentData(gctx, logger, user.Username, "", "", "", false, false)
 			}()
 		}
 		gctx.Request.Header.Add("User", user.Username) // to be used in tusd callbacks

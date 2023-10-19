@@ -23,23 +23,26 @@ type Gang struct {
 	ContentID string `json:"-" redis:"gang_content_ID" valid:"-"`
 	// Gang Content link.
 	ContentURL string `json:"gang_content_url" redis:"gang_content_url" valid:"url,optional"`
-	// Gang Stream status
+	// Gang Screen Share.
+	ContentScreenShare bool `json:"gang_screen_share" redis:"gang_screen_share" valid:"-"`
+	// Gang Stream status.
 	Streaming bool `json:"-" redis:"gang_streaming" valid:"-"`
 }
 
 // Response structure of Gangs in Popcorn, typically used in get methods.
 // Used to send gang data to client.
 type GangResponse struct {
-	Admin       string `json:"gang_admin,omitempty" redis:"gang_admin"`
-	Name        string `json:"gang_name" redis:"gang_name"`
-	Limit       uint   `json:"gang_member_limit" redis:"gang_member_limit"`
-	IsAdmin     bool   `json:"is_admin"`
-	Count       int    `json:"gang_members_count"`
-	Created     int64  `json:"gang_created,omitempty" redis:"gang_created"`
-	ContentName string `json:"gang_content_name" redis:"gang_content_name"`
-	ContentID   string `json:"gang_content_ID" redis:"gang_content_ID"`
-	ContentURL  string `json:"gang_content_url" redis:"gang_content_url"`
-	Streaming   bool   `json:"gang_streaming" redis:"gang_streaming"`
+	Admin              string `json:"gang_admin,omitempty" redis:"gang_admin"`
+	Name               string `json:"gang_name" redis:"gang_name"`
+	Limit              uint   `json:"gang_member_limit" redis:"gang_member_limit"`
+	IsAdmin            bool   `json:"is_admin"`
+	Count              int    `json:"gang_members_count"`
+	Created            int64  `json:"gang_created,omitempty" redis:"gang_created"`
+	ContentName        string `json:"gang_content_name" redis:"gang_content_name"`
+	ContentID          string `json:"gang_content_ID" redis:"gang_content_ID"`
+	ContentURL         string `json:"gang_content_url" redis:"gang_content_url"`
+	ContentScreenShare bool   `json:"gang_screen_share" redis:"gang_screen_share"`
+	Streaming          bool   `json:"gang_streaming" redis:"gang_streaming"`
 }
 
 // Saved in DB as gang-members:<members>.

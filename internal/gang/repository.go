@@ -45,7 +45,7 @@ type Repository interface {
 	// AcceptGangInvite accepts the invite request and joins the requested gang.
 	AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error
 	// UpdateGangContentData updates content filename and ID from gang data.
-	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error
+	UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, screen_share, streaming bool) error
 }
 
 // repository struct of gang Repository.
@@ -107,6 +107,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 				}
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
 				client.HSet(ctx, gangKey, "gang_content_url", gang.ContentURL)
+				client.HSet(ctx, gangKey, "gang_screen_share", gang.ContentScreenShare)
 				if !update {
 					// Only set during creating gang, some of these can be changed by server
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
@@ -116,6 +117,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 					client.HSet(ctx, gangKey, "gang_content_name", "")
 					client.HSet(ctx, gangKey, "gang_content_ID", "")
 					client.HSet(ctx, gangKey, "gang_content_url", "")
+					client.HSet(ctx, gangKey, "gang_screen_share", false)
 				} else if len(gang.ContentID) != 0 && len(gang.ContentName) != 0 {
 					// These values are only updated through server
 					client.HSet(ctx, gangKey, "gang_content_name", gang.ContentName)
@@ -610,7 +612,7 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 }
 
 // Updates gang content ID and filename from gang data.
-func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, streaming bool) error {
+func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger, admin, cname, cID, cURL string, screen_share, streaming bool) error {
 	// Checking if an gang with admin exists in the DB
 	available, dberr := r.HasGang(ctx, logger, "gang:"+admin, "")
 	if dberr != nil {
@@ -627,6 +629,7 @@ func (r repository) UpdateGangContentData(ctx context.Context, logger log.Logger
 				client.HSet(ctx, gangKey, "gang_content_name", cname)
 				client.HSet(ctx, gangKey, "gang_content_ID", cID)
 				client.HSet(ctx, gangKey, "gang_content_url", cURL)
+				client.HSet(ctx, gangKey, "gang_screen_share", screen_share)
 				client.HSet(ctx, gangKey, "gang_streaming", streaming)
 				return nil
 			})

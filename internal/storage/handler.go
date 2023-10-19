@@ -85,8 +85,8 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 			if dberr != nil {
 				// Error occured in GetGang()
 				return tusd.NewHTTPError(dberr, 500)
-			} else if gang.ContentURL != "" {
-				// cannot contain content file & URL at the same time
+			} else if gang.ContentURL != "" || gang.ContentScreenShare {
+				// cannot contain content file & URL or screenshare ON at the same time
 				return tusd.NewHTTPError(errors.New("cannot contain content file & URL at the same time"), 400)
 			}
 			// Validate uploaded file and add filename and ID into gang data upon success
@@ -103,7 +103,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 				return tusd.ErrInvalidContentType
 			}
 
-			dberr = gangRepo.UpdateGangContentData(ctx, logger, user, hook.Upload.MetaData["filename"], hook.Upload.ID, "", false)
+			dberr = gangRepo.UpdateGangContentData(ctx, logger, user, hook.Upload.MetaData["filename"], hook.Upload.ID, "", false, false)
 			if dberr != nil {
 				// Error occured in UpdateGangContentData()
 				return tusd.NewHTTPError(dberr, 500)
@@ -118,7 +118,7 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 					// Delete gang content files
 					cleanup.DeleteContentFiles(gang.ContentID, logger)
 					// Erase gang content data from DB
-					gangRepo.UpdateGangContentData(ctx, logger, user, "", "", "", false)
+					gangRepo.UpdateGangContentData(ctx, logger, user, "", "", "", false, false)
 					// Notify the members that stream has stopped
 					members, _ := gangRepo.GetGangMembers(ctx, logger, user)
 					for _, member := range members {

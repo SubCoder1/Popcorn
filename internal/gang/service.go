@@ -12,7 +12,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/asaskevich/govalidator"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -77,7 +76,7 @@ func NewService(livekit_conf LivekitConfig, gangRepo Repository, userRepo user.R
 }
 
 func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
-	valerr := s.validateGangData(ctx, gang)
+	valerr := validateGangData(ctx, gang)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -148,9 +147,9 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		// User doesn't have their own gang to update
 		valerr := errors.New("gang:User haven't created a gang")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
-	} else if existingGangData.ContentID != "" && gang.ContentURL != "" {
-		// Either file or link, cannot contain both
-		valerr := errors.New("gang:Can only have file or link as a content")
+	} else if !canUpdateGangContentRelatedData(existingGangData, gang) {
+		// Either file or link or share
+		valerr := errors.New("gang:Can only have file or link or screenshare as a content")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
@@ -165,7 +164,7 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		}
 		gang.PassKey = hashedgangpk
 	}
-	valerr := s.validateGangData(ctx, gang)
+	valerr := validateGangData(ctx, gang)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -300,7 +299,7 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
 
-	valerr := s.validateGangData(ctx, joinGangData)
+	valerr := validateGangData(ctx, joinGangData)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -338,7 +337,7 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 }
 
 func (s service) searchgang(ctx context.Context, query entity.GangSearch, username string) ([]entity.GangResponse, uint64, error) {
-	valerr := s.validateGangData(ctx, query)
+	valerr := validateGangData(ctx, query)
 	if valerr != nil {
 		// Error occured during validation
 		return []entity.GangResponse{}, 0, valerr
@@ -347,7 +346,7 @@ func (s service) searchgang(ctx context.Context, query entity.GangSearch, userna
 }
 
 func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) error {
-	valerr := s.validateGangData(ctx, invite)
+	valerr := validateGangData(ctx, invite)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -369,7 +368,7 @@ func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) e
 }
 
 func (s service) acceptganginvite(ctx context.Context, user entity.User, invite entity.GangInvite) error {
-	valerr := s.validateGangData(ctx, invite)
+	valerr := validateGangData(ctx, invite)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -459,7 +458,7 @@ func (s service) leavegang(ctx context.Context, boot entity.GangExit) error {
 }
 
 func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite) error {
-	valerr := s.validateGangData(ctx, invite)
+	valerr := validateGangData(ctx, invite)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -472,7 +471,7 @@ func (s service) rejectganginvite(ctx context.Context, invite entity.GangInvite)
 }
 
 func (s service) bootmember(ctx context.Context, admin string, boot entity.GangExit) error {
-	valerr := s.validateGangData(ctx, boot)
+	valerr := validateGangData(ctx, boot)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -558,7 +557,7 @@ func (s service) delgang(ctx context.Context, admin string) error {
 }
 
 func (s service) sendmessage(ctx context.Context, msg entity.GangMessage, user entity.User) error {
-	valerr := s.validateGangData(ctx, msg)
+	valerr := validateGangData(ctx, msg)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -635,7 +634,7 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 		return dberr
 	}
 	// set gang.Streaming flag to true
-	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, gang.ContentName, gang.ContentID, gang.ContentURL, true)
+	dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, gang.ContentName, gang.ContentID, gang.ContentURL, gang.ContentScreenShare, true)
 	if dberr != nil {
 		// Error occured in UpdateGangContentData()
 		return dberr
@@ -651,18 +650,21 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 			s.sseService.GetOrSetEvent(ctx).Message <- data
 		}(member)
 	}
-	// Publish encoded content files into livekit cloud
-	if gang.ContentURL != "" {
-		s.livekit_config.Content = gang.ContentURL
-	} else {
-		s.livekit_config.Content = gang.ContentID
-	}
-	s.livekit_config.RoomName = "room:" + admin
-	s.livekit_config.Identity = admin
-	perr := ingressStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)
-	if perr != nil {
-		// Error occured in publishStreamContent()
-		return perr
+	// No need to do anything from here in-case of screen sharing
+	if !gang.ContentScreenShare {
+		// Publish encoded content files into livekit cloud
+		if gang.ContentURL != "" {
+			s.livekit_config.Content = gang.ContentURL
+		} else {
+			s.livekit_config.Content = gang.ContentID
+		}
+		s.livekit_config.RoomName = "room:" + admin
+		s.livekit_config.Identity = admin
+		perr := launchStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)
+		if perr != nil {
+			// Error occured in publishStreamContent()
+			return perr
+		}
 	}
 	return nil
 }
@@ -681,25 +683,39 @@ func (s service) stopcontent(ctx context.Context, admin string) error {
 		return errors.BadRequest("content is not being streamed")
 	}
 
-	s.livekit_config.RoomName = "room:" + admin
-	s.livekit_config.Content = gang.ContentID
-	s.livekit_config.Identity = admin
-	if stream, ok := streamRecords[s.livekit_config.RoomName]; ok {
-		stream <- true
+	if !gang.ContentScreenShare {
+		s.livekit_config.RoomName = "room:" + admin
+		if gang.ContentURL != "" {
+			s.livekit_config.Content = gang.ContentURL
+		} else {
+			s.livekit_config.Content = gang.ContentID
+		}
+		s.livekit_config.Identity = admin
+		if stream, ok := streamRecords[s.livekit_config.RoomName]; ok {
+			stream <- true
+		} else {
+			s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
+			ingressClient := createIngressClient(ctx, s.livekit_config)
+			updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
+		}
 	} else {
-		s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
-		ingressClient := createIngressClient(ctx, s.livekit_config)
-		updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
-	}
-	return nil
-}
-
-// Helper to validate the user data against validation-tags mentioned in its entity.
-func (s service) validateGangData(ctx context.Context, gang interface{}) error {
-	_, valerr := govalidator.ValidateStruct(gang)
-	if valerr != nil {
-		valerr := valerr.(govalidator.Errors).Errors()
-		return errors.GenerateValidationErrorResponse(valerr)
+		// set gang.Streaming flag to false
+		dberr = s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, "", "", "", false, false)
+		if dberr != nil {
+			// Error occured in UpdateGangContentData()
+			return dberr
+		}
+		members, _ := s.gangRepo.GetGangMembers(ctx, s.logger, admin)
+		for _, member := range members {
+			go func(member string) {
+				data := entity.SSEData{
+					Data: nil,
+					Type: "gangEndContent",
+					To:   member,
+				}
+				s.sseService.GetOrSetEvent(ctx).Message <- data
+			}(member)
+		}
 	}
 	return nil
 }

@@ -83,17 +83,22 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 	yes, no := true, false
 	at := auth.NewAccessToken(config.ApiKey, config.ApiSecret)
 	grant := &auth.VideoGrant{
-		RoomJoin:       true,
-		RoomAdmin:      no,
-		Room:           "room:" + gang.Admin,
-		RoomCreate:     no,
-		RoomList:       no,
-		RoomRecord:     no,
-		Recorder:       no,
-		CanPublish:     &yes,
-		CanSubscribe:   &yes,
-		CanPublishData: &yes,
-		IngressAdmin:   no,
+		RoomJoin:          true,
+		RoomAdmin:         no,
+		Room:              "room:" + gang.Admin,
+		RoomCreate:        no,
+		RoomList:          no,
+		RoomRecord:        no,
+		Recorder:          no,
+		CanPublish:        &yes,
+		CanSubscribe:      &yes,
+		CanPublishData:    &no,
+		CanPublishSources: []string{"camera", "microphone"},
+		IngressAdmin:      no,
+	}
+	if gang.Admin == config.Identity {
+		// User is an admin
+		grant.CanPublishSources = append(grant.CanPublishSources, "screen_share", "screen_share_audio")
 	}
 	at.AddGrant(grant).
 		SetIdentity(config.Identity).
@@ -188,7 +193,7 @@ func createIngressClient(ctx context.Context, config LivekitConfig) *lksdk.Ingre
 }
 
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
-func ingressStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service,
+func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service,
 	gangRepo Repository, config LivekitConfig) error {
 	ingressClient := createIngressClient(ctx, config)
 
@@ -305,7 +310,7 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 		cleanup.DeleteContentFiles(config.Content, logger)
 	}
 	// Erase gang content data
-	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", "", false)
+	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", "", false, false)
 	// Notify the members that stream has stopped
 	members, _ := gangRepo.GetGangMembers(ctx, logger, config.Identity)
 	for _, member := range members {

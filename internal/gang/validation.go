@@ -12,7 +12,7 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
-func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
+func RegisterCustomValidationTags(ctx context.Context, logger log.Logger) {
 	// Gang name validation.
 	// Gang name can only contain letters, numbers, underscore, periods and spaces.
 	govalidator.TagMap["gangname_custom"] = govalidator.Validator(func(str string) bool {

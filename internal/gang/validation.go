@@ -40,3 +40,11 @@ func validateGangData(ctx context.Context, gang interface{}) error {
 	}
 	return nil
 }
+
+func validateGangInviteData(ctx context.Context, inviteData *entity.GangInvite) error {
+	// Either invite hashcode should be there in the request json or the default body
+	if len(inviteData.InviteHashCode) == 0 && len(inviteData.Name) == 0 {
+		return errors.BadRequest("Blank join request")
+	}
+	return validateGangData(ctx, inviteData)
+}

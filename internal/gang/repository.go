@@ -108,6 +108,7 @@ func (r repository) SetOrUpdateGang(ctx context.Context, logger log.Logger, gang
 				client.HSet(ctx, gangKey, "gang_member_limit", gang.Limit)
 				client.HSet(ctx, gangKey, "gang_content_url", gang.ContentURL)
 				client.HSet(ctx, gangKey, "gang_screen_share", gang.ContentScreenShare)
+				client.HSet(ctx, gangKey, "gang_invite_hashcode", gang.InviteHashCode)
 				if !update {
 					// Only set during creating gang, some of these can be changed by server
 					client.HSet(ctx, gangKey, "gang_admin", gang.Admin)
@@ -584,11 +585,13 @@ func (r repository) SendGangInvite(ctx context.Context, logger log.Logger, invit
 
 // Accepts a gang invite request and joins the gang.
 func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, invite entity.GangInvite) error {
-	// Delete the invite from user's gang-invites: set
-	dberr := r.DelGangInvite(ctx, logger, invite)
-	if dberr != nil {
-		// Issues in DelGangIndex()
-		return dberr
+	if invite.InviteHashCode == "NOTREQUIRED" {
+		// Delete the invite from user's gang-invites: set
+		dberr := r.DelGangInvite(ctx, logger, invite)
+		if dberr != nil {
+			// Issues in DelGangIndex()
+			return dberr
+		}
 	}
 	// Validate if gang by the key gang:<invite.Admin> with <invite.Name> exists
 	gangKey := "gang:" + invite.Admin
@@ -598,8 +601,10 @@ func (r repository) AcceptGangInvite(ctx context.Context, logger log.Logger, inv
 		return dberr
 	} else if !gangExists {
 		// Gang doesn't exist, invalid invite
-		gangIndex := fmt.Sprintf("gang:%s:%s", invite.Admin, strings.ToLower(invite.Name))
-		go r.delGangIndex(ctx, logger, gangIndex)
+		if invite.InviteHashCode == "NOTREQUIRED" {
+			gangIndex := fmt.Sprintf("gang:%s:%s", invite.Admin, strings.ToLower(invite.Name))
+			go r.delGangIndex(ctx, logger, gangIndex)
+		}
 		return errors.BadRequest("Expired or Invalid Gang Invite")
 	}
 	gangJoin := &entity.GangJoin{

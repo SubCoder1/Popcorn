@@ -3,7 +3,7 @@
 package entity
 
 // Information structure of Gangs in Popcorn.
-// Saved in DB as gang:<this.Admin>.
+// Saved in DB as gang:<Gang.Admin>.
 type Gang struct {
 	// Admin of the gang, i.e., the creator who has the control of doing anything in the Gang.
 	Admin string `json:"gang_admin,omitempty" redis:"gang_admin" valid:"-"`
@@ -21,12 +21,14 @@ type Gang struct {
 	ContentName string `json:"-" redis:"gang_content_name" valid:"-"`
 	// Gang Content file ID.
 	ContentID string `json:"-" redis:"gang_content_ID" valid:"-"`
-	// Gang Content link.
+	// Gang Content URL.
 	ContentURL string `json:"gang_content_url" redis:"gang_content_url" valid:"url,optional"`
 	// Gang Screen Share.
 	ContentScreenShare bool `json:"gang_screen_share" redis:"gang_screen_share" valid:"-"`
 	// Gang Stream status.
 	Streaming bool `json:"-" redis:"gang_streaming" valid:"-"`
+	// Gang invite hash which decyphers to gang:<Gang.Admin>:<Gang.Name>.
+	InviteHashCode string `json:"-" redis:"gang_invite_hashcode" valid:"-"`
 }
 
 // Response structure of Gangs in Popcorn, typically used in get methods.
@@ -43,6 +45,7 @@ type GangResponse struct {
 	ContentURL         string `json:"gang_content_url" redis:"gang_content_url"`
 	ContentScreenShare bool   `json:"gang_screen_share" redis:"gang_screen_share"`
 	Streaming          bool   `json:"gang_streaming" redis:"gang_streaming"`
+	InviteHashCode     string `json:"gang_invite_hashcode" redis:"gang_invite_hashcode"`
 }
 
 // Saved in DB as gang-members:<members>.
@@ -70,8 +73,9 @@ type GangSearch struct {
 // GangInvite is stored in the format <GangInvite.Admin>:<GangInvite.Name>:<Created_UNIX_Timestamp>
 type GangInvite struct {
 	Admin          string `json:"gang_admin,omitempty" valid:"-"`
-	Name           string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
-	For            string `json:"gang_invite_for,omitempty" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
+	Name           string `json:"gang_name" valid:"type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
+	For            string `json:"gang_invite_for,omitempty" valid:"type(string),printableascii,stringlength(5|30),username_custom~username:Invalid Username"`
+	InviteHashCode string `json:"gang_invite_hashcode,omitempty" valid:"type(string),stringlength(10|730)"`
 	CreatedTimeAgo int64  `json:"invite_sent_timeago,omitempty" valid:"-"`
 }
 

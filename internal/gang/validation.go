@@ -12,7 +12,7 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
-func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
+func RegisterCustomValidationTags(ctx context.Context, logger log.Logger) {
 	// Gang name validation.
 	// Gang name can only contain letters, numbers, underscore, periods and spaces.
 	govalidator.TagMap["gangname_custom"] = govalidator.Validator(func(str string) bool {
@@ -39,4 +39,12 @@ func validateGangData(ctx context.Context, gang interface{}) error {
 		return errors.GenerateValidationErrorResponse(valerr)
 	}
 	return nil
+}
+
+func validateGangInviteData(ctx context.Context, inviteData *entity.GangInvite) error {
+	// Either invite hashcode should be there in the request json or the default body
+	if len(inviteData.InviteHashCode) == 0 && len(inviteData.Name) == 0 {
+		return errors.BadRequest("Blank join request")
+	}
+	return validateGangData(ctx, inviteData)
 }

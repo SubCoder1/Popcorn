@@ -216,16 +216,16 @@ func joinGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in joinGang")
 			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		var gangKey entity.GangJoin
+		var joinData entity.GangJoin
 		// Serialize received data into GangKey struct
-		if binderr := gctx.ShouldBindJSON(&gangKey); binderr != nil {
+		if binderr := gctx.ShouldBindJSON(&joinData); binderr != nil {
 			// Error occured during serialization
 			gctx.AbortWithStatusJSON(http.StatusUnprocessableEntity, errors.UnprocessableEntity(""))
 			return
 		}
 		// Set gang-key which is of format gang:<gang_admin>
-		gangKey.Key = "gang:" + gangKey.Admin
-		err := gangService.joingang(gctx, user, gangKey)
+		joinData.Key = "gang:" + joinData.Admin
+		err := gangService.joingang(gctx, user, joinData)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -333,6 +333,7 @@ func sendInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 		gangInvite.Admin = user.Username
 		// Set CreatedTimeAgo to now
 		gangInvite.CreatedTimeAgo = time.Now().Unix()
+		gangInvite.InviteHashCode = "NOTREQUIRED"
 		err := gangService.sendganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error
@@ -402,6 +403,7 @@ func rejectInvite(gangService Service, logger log.Logger) gin.HandlerFunc {
 			return
 		}
 		gangInvite.For = user.Username
+		gangInvite.InviteHashCode = "NOTREQUIRED"
 		err := gangService.rejectganginvite(gctx, gangInvite)
 		if err != nil {
 			// Error occured, might be validation or server error

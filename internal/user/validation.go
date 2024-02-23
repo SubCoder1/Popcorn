@@ -11,7 +11,7 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
-func RegisterCustomValidations(ctx context.Context, logger log.Logger) {
+func RegisterCustomValidationTags(ctx context.Context, logger log.Logger) {
 	// Password strength validation.
 	// Only checks for 1 letter and 1 number, nothing too complicated.
 	govalidator.TagMap["pwdstrength"] = govalidator.Validator(func(pwd string) bool {

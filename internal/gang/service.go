@@ -10,6 +10,8 @@ import (
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
 	"context"
+	"encoding/base64"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -112,6 +114,7 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		return hasherr
 	}
 	gang.PassKey = hashedgangpk
+	gang.InviteHashCode = base64.StdEncoding.EncodeToString([]byte("gang:" + gang.Admin + ":" + gang.Name))
 
 	// Save gang data in DB
 	_, dberr = s.gangRepo.SetOrUpdateGang(ctx, s.logger, gang, false)
@@ -164,6 +167,13 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		}
 		gang.PassKey = hashedgangpk
 	}
+
+	if existingGangData.Name != gang.Name {
+		gang.InviteHashCode = base64.StdEncoding.EncodeToString([]byte("gang:" + gang.Admin + ":" + gang.Name))
+	} else {
+		gang.InviteHashCode = existingGangData.InviteHashCode
+	}
+
 	valerr := validateGangData(ctx, gang)
 	if valerr != nil {
 		// Error occured during validation
@@ -368,7 +378,18 @@ func (s service) sendganginvite(ctx context.Context, invite entity.GangInvite) e
 }
 
 func (s service) acceptganginvite(ctx context.Context, user entity.User, invite entity.GangInvite) error {
-	valerr := validateGangData(ctx, invite)
+	if len(invite.InviteHashCode) != 0 {
+		// We need to decode the hashcode to fill fields like Admin and Name
+		info, decerr := s.decodeInviteHashCode(invite.InviteHashCode)
+		if decerr != nil {
+			return decerr
+		}
+		// info => {"gang", "<gang_admin>", "<gang_name>"}
+		invite.Admin, invite.Name = info[1], info[2]
+	} else {
+		invite.InviteHashCode = "NOTREQUIRED"
+	}
+	valerr := validateGangInviteData(ctx, &invite)
 	if valerr != nil {
 		// Error occured during validation
 		return valerr
@@ -736,4 +757,19 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
 	return err == nil
+}
+
+// Helper to decode info from invite hashcode
+func (s service) decodeInviteHashCode(hash string) ([]string, error) {
+	invite_info, decerr := base64.StdEncoding.DecodeString(hash)
+	if decerr != nil {
+		return []string{}, errors.BadRequest("Invalid invite request.")
+	}
+	// info would be {"gang", "<gang_admin>", "<gang_name>"}
+	info := strings.Split(string(invite_info[:]), ":")
+	if len(info) != 3 {
+		// incorrect invite info
+		return info, errors.BadRequest("Invalid invite request.")
+	}
+	return info, nil
 }

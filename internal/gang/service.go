@@ -11,6 +11,7 @@ import (
 	"Popcorn/pkg/log"
 	"context"
 	"encoding/base64"
+	"os"
 	"strings"
 	"time"
 
@@ -127,6 +128,10 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 		}
 		return dberr
 	}
+	// Check if testing is going on
+	if os.Getenv("ENV") == "TEST" {
+		return nil
+	}
 	// Create livekit room
 	s.livekit_config.Identity = gang.Admin
 	s.livekit_config.RoomName = "room:" + gang.Admin
@@ -221,7 +226,7 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		// Error occured in GetJoinedGang()
 		return entity.GangResponse{}, canCreate, canJoin, dberr
 	}
-	if gangData.Admin != "" || gangJoinedData.Admin != "" {
+	if (gangData.Admin != "" || gangJoinedData.Admin != "") && os.Getenv("ENV") != "TEST" {
 		if gangData.Admin != "" {
 			s.livekit_config.Identity = gangData.Admin
 			s.livekit_config.RoomName = "room:" + gangData.Admin
@@ -256,7 +261,7 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		return gangJoinedData, canCreate, canJoin, dberr
 	}
 	canCreate, canJoin = true, true
-	return struct{}{}, canCreate, canJoin, nil
+	return entity.GangResponse{}, canCreate, canJoin, nil
 }
 
 func (s service) getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error) {

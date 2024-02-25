@@ -10,7 +10,7 @@ type Gang struct {
 	// Name of the gang, can be a duplicate.
 	Name string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	// Passkey of the gang making it private.
-	PassKey string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
+	PassKey string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|72),nospace~gang_pass_key:Cannot contain whitespace"`
 	// Gang Member Limit, minimum 2 and maximum 10.
 	Limit uint `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	// Consider this as a Foreign key to 'GangMembersList' struct, which keeps a list of all the members currently in this gang.

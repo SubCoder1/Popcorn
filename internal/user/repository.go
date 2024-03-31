@@ -133,15 +133,36 @@ func (r repository) HasUser(ctx context.Context, logger log.Logger, username str
 // Returns user data matching incoming query in DB.
 func (r repository) SearchUser(ctx context.Context, logger log.Logger, query entity.UserSearch) ([]entity.User, uint64, error) {
 	searchBy := query.Username + "*"
-	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "user:index", uint64(query.Cursor), searchBy, 10).Result()
+	initialResult, newCursor, dberr := r.db.Client().SScan(ctx, "user:index", uint64(query.Cursor), searchBy, 10).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in user.SearchUser")
 		return []entity.User{}, uint64(0), errors.InternalServerError("")
 	}
+	resultSet := make(map[string]struct{}) // Empty set
+	// Helper to add values from SScan() into resultSet
+	addIntoResultSet := func(resultList []string) {
+		for _, u := range resultList {
+			resultSet[u] = struct{}{}
+		}
+	}
+	addIntoResultSet(initialResult)
+	// Have to repeat SScan() until we get 10 results or cursor returned by the server is 0 again
+	// Else unpredictable searchResult will be returned to the client
+	for len(resultSet) <= 10 && newCursor != 0 {
+		freshList, freshCursor, dberr := r.db.Client().SScan(ctx, "user:index", newCursor, searchBy, 10).Result()
+		if dberr != nil && dberr != redis.Nil {
+			// Error during interacting with DB
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in user.SearchUser")
+			return []entity.User{}, uint64(0), errors.InternalServerError("")
+		}
+		newCursor = freshCursor
+		addIntoResultSet(freshList)
+	}
+
 	searchResult := []entity.User{}
-	for _, index := range resultSet {
-		userData, err := r.GetUser(ctx, logger, index)
+	for username := range resultSet {
+		userData, err := r.GetUser(ctx, logger, username)
 		if err != nil {
 			// Issues in GetUser()
 			return searchResult, uint64(0), err

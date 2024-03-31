@@ -485,18 +485,38 @@ func (r repository) JoinGang(ctx context.Context, logger log.Logger, join entity
 
 // Returns paginated gang details of all the gangs matched by query (gang_name) in DB.
 func (r repository) SearchGang(ctx context.Context, logger log.Logger, gs entity.GangSearch, username string) ([]entity.GangResponse, uint64, error) {
-	searchResult := []entity.GangResponse{}
 	// try searching gang index gang:*:query:index, assuming query as gang name
 	searchBy := fmt.Sprintf("gang:*:%s*", strings.ToLower(gs.Name))
-	resultSet, newCursor, dberr := r.db.Client().SScan(ctx, "gang:index", uint64(gs.Cursor), searchBy, 10).Result()
-
+	initialResult, newCursor, dberr := r.db.Client().SScan(ctx, "gang:index", uint64(gs.Cursor), searchBy, 10).Result()
 	if dberr != nil && dberr != redis.Nil {
 		// Error during interacting with DB
 		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in gang.SearchGang")
 		return []entity.GangResponse{}, uint64(0), errors.InternalServerError("")
 	}
-	for _, index := range resultSet {
-		gangKey, gangName, exterr := extDataFromGangIndex(ctx, logger, index)
+	resultSet := make(map[string]struct{}) // Empty set
+	// Helper to add values from SScan() into resultSet
+	addIntoResultSet := func(resultList []string) {
+		for _, u := range resultList {
+			resultSet[u] = struct{}{}
+		}
+	}
+	addIntoResultSet(initialResult)
+	// Have to repeat SScan() until we get 10 results or cursor returned by the server is 0 again
+	// Else unpredictable searchResult will be returned to the client
+	for len(resultSet) <= 10 && newCursor != 0 {
+		freshList, freshCursor, dberr := r.db.Client().SScan(ctx, "gang:index", newCursor, searchBy, 10).Result()
+		if dberr != nil && dberr != redis.Nil {
+			// Error during interacting with DB
+			logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured during execution of redis.SScan() in gang.SearchGang")
+			return []entity.GangResponse{}, uint64(0), errors.InternalServerError("")
+		}
+		newCursor = freshCursor
+		addIntoResultSet(freshList)
+	}
+
+	searchResult := []entity.GangResponse{}
+	for gangIndex := range resultSet {
+		gangKey, gangName, exterr := extDataFromGangIndex(ctx, logger, gangIndex)
 		if exterr != nil {
 			// Issues in extractGangKeyFromIndex()
 			return searchResult, uint64(0), exterr

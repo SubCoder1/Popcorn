@@ -283,32 +283,39 @@ func searchGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 
 		var query entity.GangSearch
 		gang_name := gctx.DefaultQuery("gang_name", "")
-		cursor, converr := strconv.Atoi(gctx.DefaultQuery("cursor", "0"))
-		if converr != nil || cursor < 0 || cursor > 1000 {
-			// Invalid cursor input
-			gctx.Status(http.StatusBadRequest)
-			return
-		}
-		// bind data into query struct
-		query.Name = gang_name
-		query.Cursor = cursor
-
-		response, newCursor, err := gangService.searchgang(gctx, query, user.Username)
-		if err != nil {
-			// Error occured, might be validation or server error
-			err, ok := err.(errors.ErrorResponse)
-			if !ok {
-				// Type assertion error
-				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		if gang_name != "" {
+			cursor, converr := strconv.Atoi(gctx.DefaultQuery("cursor", "0"))
+			if converr != nil || cursor < 0 || cursor > 1000 {
+				// Invalid cursor input
+				gctx.Status(http.StatusBadRequest)
 				return
 			}
-			gctx.AbortWithStatusJSON(err.Status, err)
-			return
+			// bind data into query struct
+			query.Name = gang_name
+			query.Cursor = cursor
+
+			response, newCursor, err := gangService.searchgang(gctx, query, user.Username)
+			if err != nil {
+				// Error occured, might be validation or server error
+				err, ok := err.(errors.ErrorResponse)
+				if !ok {
+					// Type assertion error
+					gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+					return
+				}
+				gctx.AbortWithStatusJSON(err.Status, err)
+				return
+			}
+			gctx.JSON(http.StatusOK, gin.H{
+				"result": response,
+				"page":   newCursor,
+			})
+		} else {
+			gctx.JSON(http.StatusOK, gin.H{
+				"result": []entity.GangResponse{},
+				"page":   0,
+			})
 		}
-		gctx.JSON(http.StatusOK, gin.H{
-			"result": response,
-			"page":   newCursor,
-		})
 	}
 }
 

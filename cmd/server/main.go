@@ -61,9 +61,9 @@ func main() {
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
-	validations.RegisterCustomValidations(ctx, logger)
-	user.RegisterCustomValidations(ctx, logger)
-	gang.RegisterCustomValidations(ctx, logger)
+	validations.RegisterCustomValidationTags(ctx, logger)
+	user.RegisterCustomValidationTags(ctx, logger)
+	gang.RegisterCustomValidationTags(ctx, logger)
 
 	// Fetching server address and port from the environment
 	srvaddr, srvport := os.Getenv("SRV_ADDR"), os.Getenv("SRV_PORT")

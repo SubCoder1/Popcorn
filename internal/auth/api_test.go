@@ -121,8 +121,8 @@ func setup() {
 	// Initializing validator
 	govalidator.SetFieldsRequiredByDefault(true)
 	// Adding custom validation tags into ext-package govalidator
-	validations.RegisterCustomValidations(ctx, logger)
-	user.RegisterCustomValidations(ctx, logger)
+	validations.RegisterCustomValidationTags(ctx, logger)
+	user.RegisterCustomValidationTags(ctx, logger)
 	// Initializing router
 	setupMockRouter(client, logger)
 	// Read testdata and unmarshall into AuthTest

@@ -3,6 +3,7 @@
 package test
 
 import (
+	"Popcorn/internal/entity"
 	"Popcorn/pkg/log"
 	"Popcorn/pkg/middlewares"
 	"net/http"
@@ -53,7 +54,9 @@ func MockAuthMiddleware(logger log.Logger) gin.HandlerFunc {
 		}
 		// Set Username in request's context
 		// This pair will be used further down in the handler chain
-		gctx.Set("Username", user.Value)
+		gctx.Set("User", entity.User{
+			Username: user.Value,
+		})
 		gctx.Next()
 	}
 }

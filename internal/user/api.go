@@ -66,21 +66,28 @@ func searchUser(service Service, logger log.Logger) gin.HandlerFunc {
 		query.Username = request_username
 		query.Cursor = request_cursor
 
-		response, newCursor, err := service.searchuser(gctx, query)
-		if err != nil {
-			// Error occured, might be validation or server error
-			err, ok := err.(errors.ErrorResponse)
-			if !ok {
-				// Type assertion error
-				gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+		if len(query.Username) != 0 {
+			response, newCursor, err := service.searchuser(gctx, query)
+			if err != nil {
+				// Error occured, might be validation or server error
+				err, ok := err.(errors.ErrorResponse)
+				if !ok {
+					// Type assertion error
+					gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+					return
+				}
+				gctx.AbortWithStatusJSON(err.Status, err)
 				return
 			}
-			gctx.AbortWithStatusJSON(err.Status, err)
-			return
+			gctx.JSON(http.StatusOK, gin.H{
+				"result": response,
+				"page":   newCursor,
+			})
+		} else {
+			gctx.JSON(http.StatusOK, gin.H{
+				"result": []entity.User{},
+				"page":   0,
+			})
 		}
-		gctx.JSON(http.StatusOK, gin.H{
-			"result": response,
-			"page":   newCursor,
-		})
 	}
 }

@@ -27,7 +27,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
 
 **VueJS** <3 or above>
 
-## Installation (With Docker)
+## Building (With Docker)
 
 1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
 
@@ -57,7 +57,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
    ```
 7. Finally, Open http://localhost and try it out!
 
-## Installation (without Docker)
+## Building (without Docker)
 
 1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
 

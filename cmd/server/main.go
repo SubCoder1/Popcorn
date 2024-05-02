@@ -148,5 +148,10 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	storage_handler := storage.GetTusdStorageHandler(gangRepo, sseService, logger)
 	storage.APIHandlers(router, storage_handler, accAuthMiddleware, tusAuthMiddleware, logger)
 
+	// Default route, Will help in healthchecks
+	router.GET("/", func(gctx *gin.Context) {
+		gctx.String(http.StatusOK, "Yo yo yo. 148-3 to the 3 to the 6 to the 9, representing the ABQ, what up, biatch?!")
+	})
+
 	return router
 }

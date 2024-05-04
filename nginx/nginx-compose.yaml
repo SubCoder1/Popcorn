@@ -14,6 +14,7 @@ services:
       - ./certbot/conf/:/etc/nginx/ssl/:ro
     networks:
       - popcorn-network
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
   certbot:
     image: certbot/certbot:latest
@@ -22,6 +23,7 @@ services:
       - ./certbot/conf/:/etc/letsencrypt/:rw
     networks:
       - popcorn-network
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 networks:
   popcorn-network:

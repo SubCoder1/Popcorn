@@ -21,12 +21,6 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
 
 **Redis** <5 or above>
 
-**Node** <20 or above>
-
-**NPM** <9 or above>
-
-**VueJS** <3 or above>
-
 ## Building (With Docker)
 
 1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
@@ -73,10 +67,5 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
    # Server is running on port 8080
    ```
 
-4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web).
-5. Inside Popcorn-web repository, Set ```VUE_APP_SERVER_URL = http://localhost:8080``` (line-1).
-6. Run the frontend using the command below:
-   ```console
-      npm run serve -- --port 8081
-   ```
-8. Finally, Open http://localhost:8081 and try it out!   
+4. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run the application (You'll find front-end docs there).
+5. Finally, Open http://localhost:8081 and try it out!   

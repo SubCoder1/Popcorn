@@ -52,7 +52,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
 7. Finally, Open http://localhost and try it out!
 
 ## Building (without Docker)
-
+### Linux Only
 1. Get [Livekit](https://livekit.io/) Host, API, Secret and RTMP Host credentials and save those in ```config/secrets.env```. This is a one time thing.
 
 2. Clone this repository and run it using the command below (Make sure redis-server is installed):

@@ -39,7 +39,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
 5. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:
 
     ```console
-    docker compose up --build
+    docker compose up --build -d
     ```
 6. Launch the nginx docker container, which'll receive both the backend and the frontend's traffic:
 
@@ -47,7 +47,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
    // In Popcorn repository
    cd nginx/
    
-   docker compose -f nginx-compose.yaml up --build 
+   docker compose -f nginx-compose.yaml up --build -d
    ```
 7. Finally, Open http://localhost and try it out!
 

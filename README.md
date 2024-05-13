@@ -33,7 +33,7 @@ front end is presented by [Popcorn-web](https://github.com/SubCoder1/Popcorn-web
 4. Clone this repository and run it using the command below:
    
    ```console
-   docker compose --env-file=./config/secrets.env up --build
+   docker compose --env-file=./config/secrets.env up --build -d
    ```
 
 5. Clone [Popcorn-web](https://github.com/SubCoder1/Popcorn-web) and run it using the command below:

@@ -51,6 +51,9 @@ func (u User) SelectProfilePic() string {
 		"thief.png",
 		"witch.png",
 		"zombie.png",
+		"spiderman.png",
+		"thanos.png",
+		"bane.png",
 	}
 	r := rand.New(rand.NewSource(time.Now().Unix())) // initialize global pseudo random generator
 	return profiles[r.Intn(len(profiles))]

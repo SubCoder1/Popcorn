@@ -75,10 +75,10 @@ func (s service) ResetMetrics(ctx context.Context) {
 
 func (s service) revertingressquota(ctx context.Context) {
 	day = time.Now().UTC().Day()
-	if day == 1 {
+	metrics, _ := s.GetMetrics(ctx)
+	if day == 1 && metrics.IngressQuotaExceeded {
 		// Reset the metrics on the first day of every month
 		s.logger.WithCtx(ctx).Info().Msg("Setting metrics.IngressQuotaExceeded to False")
-		metrics, _ := s.GetMetrics(ctx)
 		metrics.IngressQuotaExceeded = false
 		s.SetOrUpdateMetrics(ctx, &metrics)
 		s.logger.WithCtx(ctx).Info().Msg("Metrics Reset Successful")

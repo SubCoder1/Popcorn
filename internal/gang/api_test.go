@@ -4,6 +4,7 @@ package gang
 
 import (
 	"Popcorn/internal/entity"
+	"Popcorn/internal/metrics"
 	"Popcorn/internal/sse"
 	"Popcorn/internal/test"
 	"Popcorn/internal/user"
@@ -40,6 +41,9 @@ var userRepo user.Repository
 
 // Global instance of gang Repository to be used during gang API testing.
 var gangRepo Repository
+
+// Global instance of metrics Repository to be used during metrics API testing.
+var metricsRepo metrics.Repository
 
 // Global context
 var ctx context.Context = context.Background()
@@ -116,17 +120,22 @@ func setupMockRouter(dbConnWrp *db.RedisDB, logger log.Logger) {
 	// Initializing mock router
 	mockRouter = test.MockRouter()
 
-	// Repositories needed by gang APIs and services to work
-	userRepo = user.NewRepository(dbConnWrp)
-	gangRepo = NewRepository(dbConnWrp)
-
-	// Register internal package gang handler
-	sseService := sse.NewService(logger)
-	gangService := NewService(LivekitConfig{
+	// Initializing livekit mock config
+	livekitMockConfig := entity.LivekitConfig{
 		Host:      "ws://localhost:8000",
 		ApiKey:    "LivekitAPI",
 		ApiSecret: "LivekitAPISecret",
-	}, gangRepo, userRepo, sseService, logger)
+	}
+
+	// Repositories needed by gang APIs and services to work
+	userRepo = user.NewRepository(dbConnWrp)
+	gangRepo = NewRepository(dbConnWrp)
+	metricsRepo = metrics.NewRepository(dbConnWrp)
+
+	// Register internal package gang handler
+	sseService := sse.NewService(logger)
+	metricsService := metrics.NewService(livekitMockConfig, metricsRepo, logger)
+	gangService := NewService(livekitMockConfig, gangRepo, userRepo, sseService, metricsService, logger)
 	APIHandlers(mockRouter, gangService, test.MockAuthMiddleware(logger), logger)
 }
 

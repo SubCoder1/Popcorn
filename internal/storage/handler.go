@@ -5,6 +5,7 @@ package storage
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/gang"
+	"Popcorn/internal/metrics"
 	"Popcorn/internal/sse"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
@@ -31,7 +32,12 @@ var (
 )
 
 // Returns a fresh or existing Tusd Unrouted handler to help in gang content upload
-func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, logger log.Logger) *tusd.UnroutedHandler {
+func GetTusdStorageHandler(
+	gangRepo gang.Repository,
+	metricsService metrics.Service,
+	sseService sse.Service,
+	livekit_config entity.LivekitConfig,
+	logger log.Logger) *tusd.UnroutedHandler {
 	// Check if upload directory exists, if not make one
 	if _, err := os.Stat(UPLOAD_PATH); errors.Is(err, os.ErrNotExist) {
 		err := os.MkdirAll(UPLOAD_PATH, 0777)
@@ -59,6 +65,15 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 		NotifyTerminatedUploads: true,
 		DisableDownload:         false,
 		PreUploadCreateCallback: func(hook tusd.HookEvent) error {
+			// Check livekit metrics
+			metrics, dberr := metricsService.GetMetrics(ctx)
+			if dberr != nil {
+				// Error in GetMetrics()
+				return tusd.NewHTTPError(dberr, 500)
+			}
+			if metrics.IngressQuotaExceeded || metrics.ActiveIngress+1 > livekit_config.MaxConcurrentIngressLimit {
+				return tusd.ErrUploadStoppedByServer
+			}
 			// Validate metadata attached with the upload request
 			user := hook.HTTPRequest.Header.Get("User")
 			gangKey := "gang:" + user
@@ -108,6 +123,18 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 				// Error occured in UpdateGangContentData()
 				return tusd.NewHTTPError(dberr, 500)
 			}
+			// Update metrics
+			metrics, dberr := metricsService.GetMetrics(ctx)
+			if dberr != nil {
+				// Error occured in GetMetrics()
+				return tusd.NewHTTPError(dberr, 500)
+			}
+			metrics.ActiveIngress += 1
+			dberr = metricsService.SetOrUpdateMetrics(ctx, &metrics)
+			if dberr != nil {
+				// Error occured in SetOrUpdateMetrics()
+				return tusd.NewHTTPError(dberr, 500)
+			}
 
 			// The uploaded file should be deleted if not streamed under 10mins as storage is limited
 			time.AfterFunc(10*time.Minute, func() {
@@ -119,6 +146,12 @@ func GetTusdStorageHandler(gangRepo gang.Repository, sseService sse.Service, log
 					cleanup.DeleteContentFiles(gang.ContentID, logger)
 					// Erase gang content data from DB
 					gangRepo.UpdateGangContentData(ctx, logger, user, "", "", "", false, false)
+					// Update metrics
+					metrics, _ = metricsService.GetMetrics(ctx)
+					if metrics.ActiveIngress >= 1 {
+						metrics.ActiveIngress -= 1
+						metricsService.SetOrUpdateMetrics(ctx, &metrics)
+					}
 					// Notify the members that stream has stopped
 					members, _ := gangRepo.GetGangMembers(ctx, logger, user)
 					for _, member := range members {

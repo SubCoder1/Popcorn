@@ -127,7 +127,7 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 			logger.WithCtx(gctx).Error().Msg("Type assertion error in getGang")
 			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 		}
-		data, canCreate, canJoin, err := gangService.getgang(gctx, user.Username)
+		data, metrics, canCreate, canJoin, err := gangService.getgang(gctx, user.Username)
 		if err != nil {
 			// Error occured, might be validation or server error
 			err, ok := err.(errors.ErrorResponse)
@@ -142,6 +142,7 @@ func getGang(gangService Service, logger log.Logger) gin.HandlerFunc {
 
 		gctx.JSON(http.StatusOK, gin.H{
 			"gang":          data,
+			"metrics":       metrics,
 			"canCreateGang": canCreate,
 			"canJoinGang":   canJoin,
 		})

@@ -5,12 +5,14 @@ package gang
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/metrics"
 	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
 	"Popcorn/pkg/log"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -25,7 +27,7 @@ type Service interface {
 	// Updates a gang in Popcorn
 	updategang(ctx context.Context, gang *entity.Gang) error
 	// Get user created or joined gang data in Popcorn
-	getgang(ctx context.Context, username string) (interface{}, bool, bool, error)
+	getgang(ctx context.Context, username string) (interface{}, interface{}, bool, bool, error)
 	// Get gang invites received by user in Popcorn
 	getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error)
 	// Get list of gang members of user created / joined gang in Popcorn
@@ -60,22 +62,29 @@ type Service interface {
 // Helps to access the service layer interface and call methods.
 // Also helps to pass objects to be used from outer layer.
 type service struct {
-	livekit_config LivekitConfig
+	livekit_config entity.LivekitConfig
 	gangRepo       Repository
 	userRepo       user.Repository
 	sseService     sse.Service
+	metricsService metrics.Service
 	logger         log.Logger
 }
 
-// Instance of stream records used as an helper to close stream
+// Instance of stream records used as an helper to close stream.
 type close_stream_signal chan bool
 
 var streamRecords map[string]close_stream_signal
 
 // Helps to access the service layer interface and call methods. Service object is passed from main.
-func NewService(livekit_conf LivekitConfig, gangRepo Repository, userRepo user.Repository, sseService sse.Service, logger log.Logger) Service {
+func NewService(
+	livekit_conf entity.LivekitConfig,
+	gangRepo Repository,
+	userRepo user.Repository,
+	sseService sse.Service,
+	metricsService metrics.Service,
+	logger log.Logger) Service {
 	streamRecords = map[string]close_stream_signal{}
-	return service{livekit_conf, gangRepo, userRepo, sseService, logger}
+	return service{livekit_conf, gangRepo, userRepo, sseService, metricsService, logger}
 }
 
 func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
@@ -157,8 +166,25 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	} else if !canUpdateGangContentRelatedData(existingGangData, gang) {
 		// Either file or link or share
+		fmt.Println(existingGangData, gang)
 		valerr := errors.New("gang:Can only have file or link or screenshare as a content")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
+	}
+
+	if gang.ContentURL != "" {
+		metrics, dberr := s.metricsService.GetMetrics(ctx)
+		if dberr != nil {
+			// Error in GetMetrics()
+			return dberr
+		} else if metrics.ActiveIngress+1 > s.livekit_config.MaxConcurrentIngressLimit {
+			// Livekit concurrent ingress limit exceeded
+			valerr := errors.New("gang:Max concurrent URL livestream limit exceeded")
+			return errors.GenerateValidationErrorResponse([]error{valerr})
+		} else if metrics.IngressQuotaExceeded {
+			// Livekit ingress monthly quota exceeded
+			valerr := errors.New("gang:Monthly URL or File streaming quota has been exceeded")
+			return errors.GenerateValidationErrorResponse([]error{valerr})
+		}
 	}
 
 	if gang.PassKey == "" {
@@ -173,6 +199,7 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		gang.PassKey = hashedgangpk
 	}
 
+	// Change invite hashcode if gang name is changed
 	if existingGangData.Name != gang.Name {
 		gang.InviteHashCode = base64.StdEncoding.EncodeToString([]byte("gang:" + gang.Admin + ":" + gang.Name))
 	} else {
@@ -205,26 +232,31 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 	return dberr
 }
 
-func (s service) getgang(ctx context.Context, username string) (interface{}, bool, bool, error) {
-	// Get gang data from DB
+func (s service) getgang(ctx context.Context, username string) (interface{}, interface{}, bool, bool, error) {
 	canCreate := false
 	canJoin := false
-	// get gang details created by user (if any)(if any)
+	// Get metrics
+	metrics, dberr := s.metricsService.GetMetrics(ctx)
+	if dberr != nil {
+		// Error occured in GetMetrics()
+		return entity.GangResponse{}, metrics, canCreate, canJoin, dberr
+	}
+	// Get gang data from DB
 	gangKey := "gang:" + username
 	gangData, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, username, false)
 	if dberr != nil {
 		// Error occured in GetGang()
-		return entity.GangResponse{}, canCreate, canJoin, dberr
+		return entity.GangResponse{}, metrics, canCreate, canJoin, dberr
 	}
 	// Don't send empty gang data
 	if (gangData != entity.GangResponse{}) {
-		return gangData, canCreate, canJoin, dberr
+		return gangData, metrics, canCreate, canJoin, dberr
 	}
 	// get gang details joined by user (if any)
 	gangJoinedData, dberr := s.gangRepo.GetJoinedGang(ctx, s.logger, username)
 	if dberr != nil {
 		// Error occured in GetJoinedGang()
-		return entity.GangResponse{}, canCreate, canJoin, dberr
+		return entity.GangResponse{}, metrics, canCreate, canJoin, dberr
 	}
 	if (gangData.Admin != "" || gangJoinedData.Admin != "") && os.Getenv("ENV") != "TEST" {
 		if gangData.Admin != "" {
@@ -237,7 +269,7 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 		created, rerr := createStreamRoomIfNotExists(ctx, s.logger, s.gangRepo, s.userRepo, s.livekit_config)
 		if rerr != nil {
 			// Error occured in createStreamRoom()
-			return entity.GangResponse{}, canCreate, canJoin, rerr
+			return entity.GangResponse{}, metrics, canCreate, canJoin, rerr
 		}
 		if created {
 			// Tell the clients currently using the old token to refresh
@@ -258,10 +290,10 @@ func (s service) getgang(ctx context.Context, username string) (interface{}, boo
 	}
 	// Don't send empty gang data
 	if (gangJoinedData != entity.GangResponse{}) {
-		return gangJoinedData, canCreate, canJoin, dberr
+		return gangJoinedData, metrics, canCreate, canJoin, dberr
 	}
 	canCreate, canJoin = true, true
-	return entity.GangResponse{}, canCreate, canJoin, nil
+	return entity.GangResponse{}, metrics, canCreate, canJoin, nil
 }
 
 func (s service) getganginvites(ctx context.Context, username string) ([]entity.GangInvite, error) {
@@ -270,7 +302,7 @@ func (s service) getganginvites(ctx context.Context, username string) ([]entity.
 
 func (s service) getgangmembers(ctx context.Context, username string) ([]entity.User, error) {
 	// gangObj could be an interface or an object of GangReponse
-	gangObj, _, _, _ := s.getgang(ctx, username)
+	gangObj, _, _, _, _ := s.getgang(ctx, username)
 	gang, ok := gangObj.(entity.GangResponse)
 	if !ok {
 		return []entity.User{}, nil
@@ -676,7 +708,7 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 			s.sseService.GetOrSetEvent(ctx).Message <- data
 		}(member)
 	}
-	// No need to do anything from here in-case of screen sharing
+
 	if !gang.ContentScreenShare {
 		// Publish encoded content files into livekit cloud
 		if gang.ContentURL != "" {
@@ -686,11 +718,21 @@ func (s service) playcontent(ctx context.Context, admin string) error {
 		}
 		s.livekit_config.RoomName = "room:" + admin
 		s.livekit_config.Identity = admin
-		perr := launchStreamContent(ctx, s.logger, s.sseService, s.gangRepo, s.livekit_config)
+		perr := launchStreamContent(ctx, s.logger, s.sseService, s.metricsService, s.gangRepo, s.livekit_config)
 		if perr != nil {
 			// Error occured in publishStreamContent()
 			return perr
 		}
+	} else {
+		go func() {
+			// stop screen sharing after 2 hours
+			time.AfterFunc(time.Duration(s.livekit_config.MaxScreenShareHours)*time.Hour, func() {
+				gang, dberr := s.gangRepo.GetGang(ctx, s.logger, gangKey, admin, false)
+				if dberr == nil && !gang.Streaming {
+					s.gangRepo.UpdateGangContentData(ctx, s.logger, admin, "", "", "", false, false)
+				}
+			})
+		}()
 	}
 	return nil
 }
@@ -722,7 +764,7 @@ func (s service) stopcontent(ctx context.Context, admin string) error {
 		} else {
 			s.logger.WithCtx(ctx).Warn().Msgf("Couldn't find streamRecords for %s", s.livekit_config.RoomName)
 			ingressClient := createIngressClient(ctx, s.livekit_config)
-			updateAfterStreamEnds(ctx, s.logger, s.sseService, s.gangRepo, ingressClient, s.livekit_config)
+			updateAfterStreamEnds(ctx, s.logger, s.sseService, s.metricsService, s.gangRepo, ingressClient, s.livekit_config)
 		}
 	} else {
 		// set gang.Streaming flag to false
@@ -759,7 +801,7 @@ func (s service) generatePassKeyHash(ctx context.Context, passkey string) (strin
 
 // Helper to verify incoming passkey with the actual hash of gang's set passkey.
 // Helpful during gang join verification in Popcorn.
-func (s service) verifyPassKeyHash(ctx context.Context, passkey, hash string) bool {
+func (s service) verifyPassKeyHash(_ context.Context, passkey, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(passkey))
 	return err == nil
 }

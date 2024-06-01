@@ -6,6 +6,7 @@ import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/internal/gang"
+	"Popcorn/internal/metrics"
 	"Popcorn/pkg/log"
 	"context"
 	"net/http"
@@ -17,16 +18,27 @@ import (
 
 // As only gang admin can do anything regarding content (upload / update / delete),
 // This middleware is needed to validate incoming tus requests.
-func ContentStorageMiddleware(logger log.Logger, gangRepo gang.Repository) gin.HandlerFunc {
+func ContentStorageMiddleware(logger log.Logger, livekit_config entity.LivekitConfig, metricsService metrics.Service, gangRepo gang.Repository) gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		// Fetch username from context which will be used as the gang admin
 		user, ok := gctx.Value("User").(entity.User)
 		if !ok {
 			// Type assertion error
-			logger.WithCtx(gctx).Error().Msg("Type assertion error in createGang")
+			logger.WithCtx(gctx).Error().Msg("Type assertion error in ContentStorageMiddleware")
 			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
 			return
 		}
+
+		metrics, dberr := metricsService.GetMetrics(gctx)
+		if dberr != nil {
+			gctx.AbortWithStatusJSON(http.StatusInternalServerError, errors.InternalServerError(""))
+			return
+		} else if metrics.IngressQuotaExceeded || metrics.ActiveIngress+1 >= livekit_config.MaxConcurrentIngressLimit {
+			// We cannot accept any uploads if Ingress quota or max concurrent ingress limit exceeds
+			gctx.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+
 		gangKey := "gang:" + user.Username
 		gang, dberr := gangRepo.GetGang(gctx, logger, gangKey, user.Username, false)
 		if dberr != nil {

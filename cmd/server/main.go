@@ -5,8 +5,10 @@ package main
 
 import (
 	"Popcorn/internal/auth"
+	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
 	"Popcorn/internal/gang"
+	"Popcorn/internal/metrics"
 	"Popcorn/internal/sse"
 	"Popcorn/internal/storage"
 	"Popcorn/internal/user"
@@ -18,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -28,10 +31,11 @@ var (
 	VERSION     = os.Getenv("VERSION") // Indicates the current version of Popcorn.
 	ENVIRONMENT = os.Getenv("ENV")     // Loads the environment set for Popcorn to run on [DEV, PROD].
 	// Livekit credentials
-	LIVEKIT_CONFIG = gang.LivekitConfig{
-		Host:      os.Getenv("LIVEKIT_HOST"),
-		ApiKey:    os.Getenv("LIVEKIT_API_KEY"),
-		ApiSecret: os.Getenv("LIVEKIT_SECRET_KEY"),
+	LIVEKIT_CONFIG = entity.LivekitConfig{
+		Host:                      os.Getenv("LIVEKIT_HOST"),
+		ApiKey:                    os.Getenv("LIVEKIT_API_KEY"),
+		ApiSecret:                 os.Getenv("LIVEKIT_SECRET_KEY"),
+		MaxConcurrentIngressLimit: 1,
 	}
 )
 
@@ -46,7 +50,18 @@ func main() {
 		// if environment is empty, it means the env file wasn't correctly loaded into the platform. Exit immediately!
 		logger.Fatal().Err(errors.New("os couldn't load Environment variables.")).Msg("")
 	}
-	logger.Info().Msg("Welcome to Popcorn")
+
+	// Initializing LIVEKIT_CONFIG.MaxConcurrentIngressLimit as it needs conversion
+	max_cc_ingress_lim, converr := strconv.Atoi(os.Getenv("MAX_CONCURRENT_ACTIVE_INGRESS"))
+	if converr == nil {
+		LIVEKIT_CONFIG.MaxConcurrentIngressLimit = max_cc_ingress_lim
+	}
+	max_ss_hours_lim, converr := strconv.Atoi(os.Getenv("MAX_SCREENSHARE_HOURS"))
+	if converr == nil {
+		LIVEKIT_CONFIG.MaxScreenShareHours = max_ss_hours_lim
+	}
+
+	logger.Info().Msg("Welcome to Popcorn!")
 	logger.Info().Msgf("Popcorn Environment: %s", ENVIRONMENT)
 
 	// Opening a Redis DB connection
@@ -83,6 +98,8 @@ func main() {
 	// Graceful shutdown of Popcorn server triggered due to system interruptions
 	wait := cleanup.GracefulShutdown(ctx, logger, 5*time.Minute, []cleanup.Operation{
 		func(ctx context.Context) error {
+			// Stop long running ResetMetrics() method
+			metrics.Cleanup(ctx)
 			// Disconnect SSE connections & coressponding channels, then shutdown gin server
 			sse.Cleanup(ctx)
 			return srv.Shutdown(ctx)
@@ -118,14 +135,19 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	authRepo := auth.NewRepository(dbConnWrp)
 	userRepo := user.NewRepository(dbConnWrp)
 	gangRepo := gang.NewRepository(dbConnWrp)
+	metricsRepo := metrics.NewRepository(dbConnWrp)
 
 	// Initialize internal Service instance
 	authService := auth.NewService(accSecret, refSecret, userRepo, authRepo, logger)
 	userService := user.NewService(userRepo, logger)
 	sseService := sse.NewService(logger)
-	gangService := gang.NewService(LIVEKIT_CONFIG, gangRepo, userRepo, sseService, logger)
+	metricsService := metrics.NewService(LIVEKIT_CONFIG, metricsRepo, logger)
+	gangService := gang.NewService(LIVEKIT_CONFIG, gangRepo, userRepo, sseService, metricsService, logger)
 
-	// Launch SSE Listener in a seperate goroutine
+	// Launch ResetMetrics() in a separate goroutine
+	go metricsService.ResetMetrics(ctx)
+
+	// Launch SSE Listener in a separate goroutine
 	sseService.GetOrSetEvent(ctx)
 	go sseService.Listen(ctx)
 
@@ -133,7 +155,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	accAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "access_token", accSecret)
 	refAuthMiddleware := auth.AuthMiddleware(logger, authRepo, userRepo, "refresh_token", refSecret)
 	sseConnMiddleware := sse.SSEConnManagerMiddleware(sseService, logger)
-	tusAuthMiddleware := storage.ContentStorageMiddleware(logger, gangRepo)
+	tusAuthMiddleware := storage.ContentStorageMiddleware(logger, LIVEKIT_CONFIG, metricsService, gangRepo)
 
 	// Register handlers of different internal packages in Popcorn
 	// Register internal package auth handler
@@ -145,7 +167,7 @@ func setupRouter(ctx context.Context, dbConnWrp *db.RedisDB, logger log.Logger) 
 	// Register internal package sse handler
 	sse.APIHandlers(router, sseService, accAuthMiddleware, sseConnMiddleware, logger)
 	// Register tusd file storage handler
-	storage_handler := storage.GetTusdStorageHandler(gangRepo, sseService, logger)
+	storage_handler := storage.GetTusdStorageHandler(gangRepo, metricsService, sseService, LIVEKIT_CONFIG, logger)
 	storage.APIHandlers(router, storage_handler, accAuthMiddleware, tusAuthMiddleware, logger)
 
 	// Default route, Will help in healthchecks

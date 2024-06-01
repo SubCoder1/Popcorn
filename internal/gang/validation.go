@@ -32,7 +32,7 @@ func canUpdateGangContentRelatedData(existingGangData entity.GangResponse, gang 
 		(existingGangData.ContentScreenShare && gang.ContentURL != ""))
 }
 
-func validateGangData(ctx context.Context, gang interface{}) error {
+func validateGangData(_ context.Context, gang interface{}) error {
 	_, valerr := govalidator.ValidateStruct(gang)
 	if valerr != nil {
 		valerr := valerr.(govalidator.Errors).Errors()

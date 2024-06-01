@@ -92,3 +92,22 @@ type GangExit struct {
 type GangMessage struct {
 	Message string `json:"message" valid:"required,type(string)"`
 }
+
+type LivekitConfig struct {
+	// Host url of livekit cloud
+	Host string
+	// api key required for livekit authentication
+	ApiKey string
+	// api secret required for livekit authentication
+	ApiSecret string
+	// identity who's trying to access livekit helpers
+	Identity string
+	// optional content file ID for uploading track
+	Content string
+	// optional livekit room name
+	RoomName string
+	// Livekit concurrent ingress limit
+	MaxConcurrentIngressLimit int
+	// Livekit max screenshare hours
+	MaxScreenShareHours int
+}

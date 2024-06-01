@@ -5,6 +5,7 @@ package gang
 import (
 	"Popcorn/internal/entity"
 	"Popcorn/internal/errors"
+	"Popcorn/internal/metrics"
 	"Popcorn/internal/sse"
 	"Popcorn/internal/user"
 	"Popcorn/pkg/cleanup"
@@ -12,6 +13,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,23 +29,8 @@ var (
 	APP_URL     string = os.Getenv("ACCESS_CTL_ALLOW_ORGIN")
 )
 
-type LivekitConfig struct {
-	// Host url of livekit cloud
-	Host string
-	// api key required for livekit authentication
-	ApiKey string
-	// api secret required for livekit authentication
-	ApiSecret string
-	// identity who's trying to access livekit helpers
-	Identity string
-	// optional content file ID for uploading track
-	Content string
-	// optional livekit room name
-	RoomName string
-}
-
 // Helper to fetch livekit room access token to be used by clients.
-func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository, userRepo user.Repository, config LivekitConfig) (string, error) {
+func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository, userRepo user.Repository, config entity.LivekitConfig) (string, error) {
 	// Verify if user has joined any gang
 	gang, dberr := gangRepo.GetJoinedGang(ctx, logger, config.Identity)
 	if dberr != nil {
@@ -62,7 +49,7 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 	}
 	// This method is called here to check if the room exists or not.
 	// If not, that means the token generated or fetched from the db is invalid.
-	_, err := createStreamRoomIfNotExists(ctx, logger, gangRepo, userRepo, LivekitConfig{
+	_, err := createStreamRoomIfNotExists(ctx, logger, gangRepo, userRepo, entity.LivekitConfig{
 		Host:      config.Host,
 		ApiKey:    config.ApiKey,
 		ApiSecret: config.ApiSecret,
@@ -102,7 +89,7 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 	}
 	at.AddGrant(grant).
 		SetIdentity(config.Identity).
-		SetValidFor(time.Hour * 3)
+		SetValidFor(time.Hour * 24)
 
 	streaming_token, err = at.ToJWT()
 	if err != nil {
@@ -116,7 +103,7 @@ func getStreamToken(ctx context.Context, logger log.Logger, gangRepo Repository,
 }
 
 // Helper to create a livekit room to be used for content streaming in Popcorn gangs.
-func createStreamRoomIfNotExists(ctx context.Context, logger log.Logger, gangRepo Repository, userRepo user.Repository, config LivekitConfig) (bool, error) {
+func createStreamRoomIfNotExists(ctx context.Context, logger log.Logger, gangRepo Repository, userRepo user.Repository, config entity.LivekitConfig) (bool, error) {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
 	roomList, rerr := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{config.RoomName}})
 	if rerr != nil {
@@ -154,7 +141,7 @@ func createStreamRoomIfNotExists(ctx context.Context, logger log.Logger, gangRep
 }
 
 // Helper to delete room, triggered during delGang request from admin.
-func deleteStreamRoom(ctx context.Context, logger log.Logger, config LivekitConfig) error {
+func deleteStreamRoom(ctx context.Context, logger log.Logger, config entity.LivekitConfig) error {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
 	roomList, rerr := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{config.RoomName}})
 	if rerr != nil {
@@ -175,7 +162,7 @@ func deleteStreamRoom(ctx context.Context, logger log.Logger, config LivekitConf
 
 // Helper to remove an user from the stream.
 // Triggered during leave gang or booting a member.
-func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config LivekitConfig, member string) {
+func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config entity.LivekitConfig, member string) {
 	roomClient := lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
 	_, rerr := roomClient.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{
 		Room:     config.RoomName,
@@ -188,13 +175,18 @@ func RemoveGangMemberFromStream(ctx context.Context, logger log.Logger, config L
 }
 
 // Helper to create and return an IngressClient.
-func createIngressClient(ctx context.Context, config LivekitConfig) *lksdk.IngressClient {
+func createIngressClient(_ context.Context, config entity.LivekitConfig) *lksdk.IngressClient {
 	return lksdk.NewIngressClient(config.Host, config.ApiKey, config.ApiSecret)
 }
 
 // Helper to start streaming gang content via livekit ingress and ffmpeg.
-func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.Service,
-	gangRepo Repository, config LivekitConfig) error {
+func launchStreamContent(
+	ctx context.Context,
+	logger log.Logger,
+	sseService sse.Service,
+	metricsService metrics.Service,
+	gangRepo Repository,
+	config entity.LivekitConfig) error {
 	ingressClient := createIngressClient(ctx, config)
 
 	// Delete existing ingress with same roomname
@@ -230,11 +222,29 @@ func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.
 			},
 		},
 	}
+	metrics, dberr := metricsService.GetMetrics(ctx)
+	if dberr != nil {
+		return dberr
+	}
 	info, ingerr := ingressClient.CreateIngress(ctx, ingressRequest)
 	if ingerr != nil {
 		// Error in CreateIngress()
 		logger.WithCtx(ctx).Error().Err(ingerr).Msg("Error occured during the execution of livekit.CreateIngress()")
+		if strings.Contains(ingerr.Error(), "exceeded") {
+			// Set IngressQuotaExceeded as True to block other streams trying to utilize Ingress
+			metrics.IngressQuotaExceeded = true
+			go metricsService.SetOrUpdateMetrics(ctx, &metrics)
+		}
 		return errors.InternalServerError("")
+	} else {
+		metrics.IngressQuotaExceeded = false
+	}
+
+	// Change ActiveIngress metrics
+	metrics.ActiveIngress += 1
+	dberr = metricsService.SetOrUpdateMetrics(ctx, &metrics)
+	if dberr != nil {
+		return dberr
 	}
 
 	ticker := time.NewTicker(2 * time.Second)
@@ -244,7 +254,7 @@ func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.
 		for range ticker.C {
 			ingList, err := ingressClient.ListIngress(ctx, &livekit.ListIngressRequest{IngressId: info.IngressId})
 			if err != nil {
-				updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+				updateAfterStreamEnds(ctx, logger, sseService, metricsService, gangRepo, ingressClient, config)
 				ticker.Stop()
 				return
 			}
@@ -253,7 +263,7 @@ func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.
 				// 1 is ENDPOINT_BUFFERING and 2 is ENDPOINT_PUBLISHING
 				if ing_status != 1 && ing_status != 2 {
 					// Stream finished
-					updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+					updateAfterStreamEnds(ctx, logger, sseService, metricsService, gangRepo, ingressClient, config)
 					ticker.Stop()
 					return
 				}
@@ -266,13 +276,13 @@ func launchStreamContent(ctx context.Context, logger log.Logger, sseService sse.
 		signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 		<-s
 		ticker.Stop()
-		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		updateAfterStreamEnds(ctx, logger, sseService, metricsService, gangRepo, ingressClient, config)
 	}()
 	// Another goroutine to handle user triggered force-close of this stream
 	go func() {
 		streamRecords[config.RoomName] = make(close_stream_signal, 1)
 		<-streamRecords[config.RoomName]
-		updateAfterStreamEnds(ctx, logger, sseService, gangRepo, ingressClient, config)
+		updateAfterStreamEnds(ctx, logger, sseService, metricsService, gangRepo, ingressClient, config)
 		ticker.Stop()
 		close(streamRecords[config.RoomName])
 		delete(streamRecords, config.RoomName)
@@ -300,8 +310,13 @@ func deleteIngress(ctx context.Context, logger log.Logger, client *lksdk.Ingress
 }
 
 // Helper to update content data after stream process finishes.
-func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService sse.Service, gangRepo Repository,
-	ingressClient *lksdk.IngressClient, config LivekitConfig) {
+func updateAfterStreamEnds(
+	ctx context.Context,
+	logger log.Logger,
+	sseService sse.Service,
+	metricsService metrics.Service,
+	gangRepo Repository,
+	ingressClient *lksdk.IngressClient, config entity.LivekitConfig) {
 	logger.WithCtx(ctx).Info().Msgf("Stream ended for content %s | %s", config.Content, config.RoomName)
 	// Delete ingress
 	deleteIngress(ctx, logger, ingressClient, config.RoomName)
@@ -309,6 +324,15 @@ func updateAfterStreamEnds(ctx context.Context, logger log.Logger, sseService ss
 		// Delete gang content files
 		cleanup.DeleteContentFiles(config.Content, logger)
 	}
+	// Change ActiveIngress metrics
+	metrics, dberr := metricsService.GetMetrics(ctx)
+	if dberr != nil {
+		logger.WithCtx(ctx).Error().Err(dberr).Msg("Error occured in updateAfterStreamEnds()")
+	} else if metrics.ActiveIngress >= 1 {
+		metrics.ActiveIngress -= 1
+		go metricsService.SetOrUpdateMetrics(ctx, &metrics)
+	}
+
 	// Erase gang content data
 	gangRepo.UpdateGangContentData(ctx, logger, config.Identity, "", "", "", false, false)
 	// Notify the members that stream has stopped

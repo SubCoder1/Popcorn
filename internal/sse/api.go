@@ -15,10 +15,10 @@ import (
 
 // Registers all of the REST API handlers related to internal package sse onto the gin server.
 func APIHandlers(router *gin.Engine, service Service, authWithAcc, sseConnManager gin.HandlerFunc, logger log.Logger) {
-	router.GET("/api/sse", authWithAcc, middlewares.SSECORSMiddleware(), sseConnManager, ssehandler(service, logger))
+	router.GET("/api/sse", authWithAcc, middlewares.SSECORSMiddleware(), sseConnManager, ssehandler())
 }
 
-func ssehandler(service Service, logger log.Logger) gin.HandlerFunc {
+func ssehandler() gin.HandlerFunc {
 	return func(gctx *gin.Context) {
 		v, ok := gctx.Get("SSE")
 		if !ok {

@@ -262,6 +262,7 @@ func (r repository) GetGang(ctx context.Context, logger log.Logger, gangKey stri
 		// use timeago on gang_created
 		gangResp.Count = int(joined_count)
 		gangResp.IsAdmin = username == gangResp.Admin
+		gangResp.IsPrivate = gangResp.PassKey != ""
 	}
 
 	return gangResp, nil

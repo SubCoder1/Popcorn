@@ -10,7 +10,7 @@ type Gang struct {
 	// Name of the gang, can be a duplicate.
 	Name string `json:"gang_name" redis:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	// Passkey of the gang making it private.
-	PassKey string `json:"gang_pass_key" redis:"gang_pass_key" valid:"required,type(string),stringlength(5|72),nospace~gang_pass_key:Cannot contain whitespace"`
+	PassKey string `json:"gang_pass_key" redis:"gang_pass_key" valid:"optional,type(string),stringlength(0|72),nospace~gang_pass_key:Cannot contain whitespace"`
 	// Gang Member Limit, minimum 2 and maximum 10.
 	Limit uint `json:"gang_member_limit" redis:"gang_member_limit" valid:"required,range(2|10)"`
 	// Consider this as a Foreign key to 'GangMembersList' struct, which keeps a list of all the members currently in this gang.
@@ -36,8 +36,10 @@ type Gang struct {
 type GangResponse struct {
 	Admin              string `json:"gang_admin,omitempty" redis:"gang_admin"`
 	Name               string `json:"gang_name" redis:"gang_name"`
+	PassKey            string `json:"-" redis:"gang_pass_key"`
 	Limit              uint   `json:"gang_member_limit" redis:"gang_member_limit"`
 	IsAdmin            bool   `json:"is_admin"`
+	IsPrivate          bool   `json:"is_private"`
 	Count              int    `json:"gang_members_count"`
 	Created            int64  `json:"gang_created,omitempty" redis:"gang_created"`
 	ContentName        string `json:"gang_content_name" redis:"gang_content_name"`
@@ -59,7 +61,7 @@ type GangJoin struct {
 	Admin   string `json:"gang_admin" valid:"required,type(string),printableascii,stringlength(5|30),username_custom~admin:No spaces allowed here"`
 	Name    string `json:"gang_name" valid:"required,type(string),printableascii,stringlength(5|20),gangname_custom~gang_name:Invalid Gang Name"`
 	Key     string `json:"-" valid:"-"`
-	PassKey string `json:"gang_pass_key" valid:"required,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
+	PassKey string `json:"gang_pass_key" valid:"optional,type(string),stringlength(5|730),nospace~gang_pass_key:Cannot contain whitespace"`
 }
 
 // Used to bind and validate search_gang request.

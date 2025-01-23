@@ -12,7 +12,6 @@ import (
 	"Popcorn/pkg/log"
 	"context"
 	"encoding/base64"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -118,12 +117,14 @@ func (s service) creategang(ctx context.Context, gang *entity.Gang) error {
 	gang.Created = time.Now().Unix()
 	// Set gang members list foreign key
 	gang.MembersListKey = "gang-members:" + gang.Admin
-	// Encrypt gang passkey
-	hashedgangpk, hasherr := s.generatePassKeyHash(ctx, gang.PassKey)
-	if hasherr != nil {
-		return hasherr
+	if gang.PassKey != "" {
+		// Encrypt gang passkey as the gang is set to be private
+		hashedgangpk, hasherr := s.generatePassKeyHash(ctx, gang.PassKey)
+		if hasherr != nil {
+			return hasherr
+		}
+		gang.PassKey = hashedgangpk
 	}
-	gang.PassKey = hashedgangpk
 	gang.InviteHashCode = base64.StdEncoding.EncodeToString([]byte("gang:" + gang.Admin + ":" + gang.Name))
 
 	// Save gang data in DB
@@ -166,7 +167,6 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	} else if !canUpdateGangContentRelatedData(existingGangData, gang) {
 		// Either file or link or share
-		fmt.Println(existingGangData, gang)
 		valerr := errors.New("gang:Can only have file or link or screenshare as a content")
 		return errors.GenerateValidationErrorResponse([]error{valerr})
 	}
@@ -187,16 +187,24 @@ func (s service) updategang(ctx context.Context, gang *entity.Gang) error {
 		}
 	}
 
-	if gang.PassKey == "" {
-		// Just to pass validation
-		gang.PassKey = "PREVIOUSPASSKEY"
-	} else if len(gang.PassKey) >= 5 {
-		// Encrypt gang passkey
+	existing_pass_key, dberr := s.gangRepo.GetGangPassKey(ctx, s.logger, entity.GangJoin{Name: existingGangData.Name, Key: gangKey})
+	if dberr != nil {
+		// Error in GetGangPassKey()
+		return dberr
+	}
+	if len(gang.PassKey) >= 5 {
+		// password was changed
 		hashedgangpk, hasherr := s.generatePassKeyHash(ctx, gang.PassKey)
 		if hasherr != nil {
 			return hasherr
 		}
 		gang.PassKey = hashedgangpk
+	} else if existing_pass_key == "" {
+		// No change in password, Just to pass validation
+		gang.PassKey = "PREVIOUSPASSKEY"
+	} else {
+		// Gang is public now
+		gang.PassKey = ""
 	}
 
 	// Change invite hashcode if gang name is changed
@@ -356,7 +364,7 @@ func (s service) joingang(ctx context.Context, user entity.User, joinGangData en
 	if dberr != nil {
 		// Error occured in GetGangPassKey()
 		return dberr
-	} else if !s.verifyPassKeyHash(ctx, joinGangData.PassKey, gangPassKeyHash) {
+	} else if gangPassKeyHash != "" && !s.verifyPassKeyHash(ctx, joinGangData.PassKey, gangPassKeyHash) {
 		// Passkey didn't match
 		return errors.Unauthorized("PassKey didn't match")
 	}
